@@ -43,7 +43,7 @@ const router = createRouter({
           path: "logs",
           name: "logs",
           component: () => import("@/views/logs/index.vue"),
-          meta: { title: "调用日志" },
+          meta: { title: "调用链追踪" },
         },
         {
           path: "stats",

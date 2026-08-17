@@ -43,10 +43,28 @@ export interface ApiApp {
   id: number;
   appId: string;
   appName: string;
+  description?: string;
+  appSecret?: string;
   status: number;
   qpsLimit: number;
   dailyQuota: number;
+  interfaceCount?: number;
+  invokeCount?: number;
+  owner?: string;
   createTime: string;
+}
+
+export interface TraceSpan {
+  name: string;
+  service: string;
+  costMs: number;
+  status: "success" | "warning" | "error";
+}
+
+export interface DurationSlice {
+  label: string;
+  ms: number;
+  percent: number;
 }
 
 export interface InvokeLog {
@@ -60,6 +78,11 @@ export interface InvokeLog {
   costMs: number;
   ip: string;
   createTime: string;
+  callerName?: string;
+  requestParams?: Record<string, unknown>;
+  responseBody?: Record<string, unknown>;
+  spans?: TraceSpan[];
+  durationBreakdown?: DurationSlice[];
 }
 
 export interface OverviewStat {

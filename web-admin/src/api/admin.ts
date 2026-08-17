@@ -1,5 +1,5 @@
 import http from "@/api/http";
-import { enrichInterface, mockApps, mockInterfaces, mockLogs, mockOverview } from "@/api/mock";
+import { enrichInterface, enrichLog, mockApps, mockInterfaces, mockLogs, mockOverview } from "@/api/mock";
 import type { ApiApp, ApiInterface, ApiResult, InvokeLog, OverviewStat } from "@/types";
 
 /** 优先真实接口，失败时回退演示数据 */
@@ -28,4 +28,9 @@ export async function fetchApps(): Promise<ApiApp[]> {
 
 export async function fetchLogs(): Promise<InvokeLog[]> {
   return Promise.resolve(mockLogs);
+}
+
+export async function fetchLogByTraceId(traceId: string): Promise<InvokeLog | null> {
+  const list = await fetchLogs();
+  return list.find((item) => item.traceId === traceId) || null;
 }

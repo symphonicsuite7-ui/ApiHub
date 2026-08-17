@@ -1,4 +1,4 @@
-import type { ApiInterface, ApiApp, InvokeLog, OverviewStat } from "@/types";
+import type { ApiInterface, ApiApp, InvokeLog, OverviewStat, TraceSpan } from "@/types";
 
 /** 按路径补齐 Marketplace 展示字段 */
 export const interfaceExtras: Record<string, Partial<ApiInterface>> = {
@@ -134,30 +134,98 @@ export const mockApps: ApiApp[] = [
     id: 1,
     appId: "app_8f2a91c3",
     appName: "开放网关演示",
+    description: "用于开放网关联调与天气接口演示调用。",
+    appSecret: "sk_live_8f2a91c3d8e71f4b",
     status: 1,
     qpsLimit: 20,
     dailyQuota: 5000,
+    interfaceCount: 4,
+    invokeCount: 18240,
+    owner: "Admin",
     createTime: "2026-08-12 10:21:00",
   },
   {
     id: 2,
     appId: "app_3b70e1aa",
     appName: "内部运营系统",
+    description: "接入翻译与短信能力的内部业务系统。",
+    appSecret: "sk_live_3b70e1aa92fc114d",
     status: 1,
     qpsLimit: 50,
     dailyQuota: 20000,
+    interfaceCount: 3,
+    invokeCount: 9640,
+    owner: "Admin",
     createTime: "2026-08-10 16:08:00",
   },
   {
     id: 3,
     appId: "app_c91d44e0",
     appName: "测试沙箱",
+    description: "开发者测试环境专用沙箱应用。",
+    appSecret: "sk_sandbox_c91d44e0fa18822",
     status: 0,
     qpsLimit: 5,
     dailyQuota: 200,
+    interfaceCount: 2,
+    invokeCount: 126,
+    owner: "Developer",
     createTime: "2026-08-08 11:30:00",
   },
 ];
+
+const appNameMap = Object.fromEntries(mockApps.map((a) => [a.appId, a.appName]));
+
+/** 为日志补齐调用链、请求响应与耗时分析（演示数据） */
+export function enrichLog(log: InvokeLog): InvokeLog {
+  const gatewayMs = Math.max(3, Math.round(log.costMs * 0.08));
+  const authMs = Math.max(2, Math.round(log.costMs * 0.12));
+  const invokeMs = Math.max(5, Math.round(log.costMs * 0.35));
+  const businessMs = Math.max(1, log.costMs - gatewayMs - authMs - invokeMs);
+  const isError = log.statusCode >= 500;
+  const isWarn = log.statusCode === 429;
+
+  const spanStatus = (errorAt?: boolean): TraceSpan["status"] => {
+    if (isError && errorAt) return "error";
+    if (isWarn) return "warning";
+    return "success";
+  };
+
+  const requestParams =
+    log.path.includes("weather")
+      ? { city: "北京" }
+      : log.path.includes("translate")
+        ? { text: "Hello", from: "en", to: "zh" }
+        : log.path.includes("sms")
+          ? { phone: "13800138000", content: "验证码 9527" }
+          : {};
+
+  const responseBody =
+    log.statusCode >= 200 && log.statusCode < 300
+      ? { code: 0, msg: "success", data: { traceId: log.traceId }, traceId: log.traceId }
+      : log.statusCode === 429
+        ? { code: 429, msg: "请求过于频繁", traceId: log.traceId }
+        : { code: 500, msg: "下游服务异常", traceId: log.traceId };
+
+  return {
+    ...log,
+    callerName: appNameMap[log.appId] || log.appId,
+    requestParams,
+    responseBody,
+    spans: [
+      { name: "Gateway", service: "api-gateway:8080", costMs: gatewayMs, status: spanStatus() },
+      { name: "Auth Check", service: "api-gateway / sign", costMs: authMs, status: spanStatus() },
+      { name: "Invoke Service", service: "api-invoke:8083", costMs: invokeMs, status: spanStatus(isError) },
+      { name: "Business API", service: log.name || log.path, costMs: businessMs, status: spanStatus(isError) },
+    ],
+    durationBreakdown: [
+      { label: "Gateway 路由", ms: gatewayMs, percent: Math.round((gatewayMs / log.costMs) * 100) },
+      { label: "鉴权校验", ms: authMs, percent: Math.round((authMs / log.costMs) * 100) },
+      { label: "服务转发", ms: invokeMs, percent: Math.round((invokeMs / log.costMs) * 100) },
+      { label: "业务处理", ms: businessMs, percent: Math.round((businessMs / log.costMs) * 100) },
+    ],
+  };
+}
 
 export const mockLogs: InvokeLog[] = [
   {
@@ -232,7 +300,7 @@ export const mockLogs: InvokeLog[] = [
     ip: "112.80.15.6",
     createTime: "2026-08-17 15:44:27",
   },
-];
+].map(enrichLog);
 
 export const mockOverview: OverviewStat = {
   todayCalls: 12546,

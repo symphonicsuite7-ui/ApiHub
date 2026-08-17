@@ -1,0 +1,25 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: apihub-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: apihub
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:7
+    container_name: apihub-redis
+    ports:
+      - "6379:6379"
+
+  # 后端镜像构建完成后再启用下列服务
+  # api-gateway / api-auth / api-admin / api-invoke / nginx
+
+networks:
+  default:
+    name: apihub-net

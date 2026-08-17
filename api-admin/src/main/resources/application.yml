@@ -1,0 +1,23 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: api-admin
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/apihub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%X{traceId}] %-5level %logger{36} - %msg%n"

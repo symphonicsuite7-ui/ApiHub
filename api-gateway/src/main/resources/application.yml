@@ -1,0 +1,20 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+
+apihub:
+  routes:
+    auth: http://127.0.0.1:8081
+    admin: http://127.0.0.1:8082
+    invoke: http://127.0.0.1:8083
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%X{traceId}] %-5level %logger{36} - %msg%n"

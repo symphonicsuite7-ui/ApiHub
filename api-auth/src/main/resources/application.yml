@@ -1,0 +1,30 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: api-auth
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/apihub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+
+apihub:
+  jwt:
+    secret: ApiHubCourseDesignSecretKeyMustBeLongEnough2026
+    expire-seconds: 7200
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%X{traceId}] %-5level %logger{36} - %msg%n"

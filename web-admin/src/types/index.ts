@@ -99,3 +99,20 @@ export interface OverviewStat {
   trendLabels: string[];
   topInterfaces: { name: string; value: number }[];
 }
+
+/** 数据分析大屏指标 */
+export interface AnalyticsStat {
+  todayCalls: number;
+  successRate: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  callTrendPct: string;
+  successTrend: string;
+  latencyTrend: string;
+  callTrend: number[];
+  trendLabels: string[];
+  topInterfaces: { name: string; value: number }[];
+  statusRatio: { name: string; value: number }[];
+  latencyByInterface: { name: string; avgMs: number; p95Ms: number }[];
+  topApps: { name: string; value: number }[];
+}

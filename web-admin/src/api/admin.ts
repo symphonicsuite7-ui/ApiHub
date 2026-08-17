@@ -1,6 +1,6 @@
 import http from "@/api/http";
-import { enrichInterface, enrichLog, mockApps, mockInterfaces, mockLogs, mockOverview } from "@/api/mock";
-import type { ApiApp, ApiInterface, ApiResult, InvokeLog, OverviewStat } from "@/types";
+import { enrichInterface, enrichLog, mockApps, mockAnalytics, mockInterfaces, mockLogs, mockOverview } from "@/api/mock";
+import type { ApiApp, ApiInterface, ApiResult, AnalyticsStat, InvokeLog, OverviewStat } from "@/types";
 
 /** 优先真实接口，失败时回退演示数据 */
 export async function fetchInterfaces(): Promise<ApiInterface[]> {
@@ -20,6 +20,10 @@ export async function fetchInterfaceById(id: number): Promise<ApiInterface | nul
 
 export async function fetchOverview(): Promise<OverviewStat> {
   return Promise.resolve(mockOverview);
+}
+
+export async function fetchAnalytics(): Promise<AnalyticsStat> {
+  return Promise.resolve(mockAnalytics);
 }
 
 export async function fetchApps(): Promise<ApiApp[]> {

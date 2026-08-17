@@ -1,4 +1,4 @@
-import type { ApiInterface, ApiApp, InvokeLog, OverviewStat, TraceSpan } from "@/types";
+import type { ApiInterface, ApiApp, InvokeLog, OverviewStat, AnalyticsStat, TraceSpan } from "@/types";
 
 /** 按路径补齐 Marketplace 展示字段 */
 export const interfaceExtras: Record<string, Partial<ApiInterface>> = {
@@ -318,5 +318,46 @@ export const mockOverview: OverviewStat = {
     { name: "Weather API", value: 4820 },
     { name: "Translate API", value: 3104 },
     { name: "SMS API", value: 1860 },
+  ],
+};
+
+/** 数据分析大屏演示数据 */
+export const mockAnalytics: AnalyticsStat = {
+  todayCalls: 12546,
+  successRate: 99.02,
+  avgLatencyMs: 68,
+  p95LatencyMs: 186,
+  callTrendPct: "+8.6%",
+  successTrend: "+0.12%",
+  latencyTrend: "-5.3%",
+  callTrend: [8640, 9210, 10120, 10880, 11450, 11980, 12546],
+  trendLabels: ["08-11", "08-12", "08-13", "08-14", "08-15", "08-16", "08-17"],
+  topInterfaces: [
+    { name: "Weather API", value: 4820 },
+    { name: "Translate API", value: 3104 },
+    { name: "SMS API", value: 1860 },
+    { name: "Health API", value: 1240 },
+    { name: "Payment API", value: 980 },
+    { name: "User API", value: 650 },
+  ],
+  statusRatio: [
+    { name: "成功", value: 12340 },
+    { name: "失败", value: 126 },
+    { name: "异常", value: 80 },
+  ],
+  latencyByInterface: [
+    { name: "Weather API", avgMs: 42, p95Ms: 98 },
+    { name: "Translate API", avgMs: 118, p95Ms: 245 },
+    { name: "SMS API", avgMs: 86, p95Ms: 186 },
+    { name: "Health API", avgMs: 12, p95Ms: 28 },
+    { name: "Payment API", avgMs: 156, p95Ms: 320 },
+    { name: "User API", avgMs: 64, p95Ms: 142 },
+  ],
+  topApps: [
+    { name: "Demo App", value: 5200 },
+    { name: "Mobile Client", value: 3840 },
+    { name: "Partner Portal", value: 2106 },
+    { name: "Internal Service", value: 1260 },
+    { name: "Test Sandbox", value: 140 },
   ],
 };

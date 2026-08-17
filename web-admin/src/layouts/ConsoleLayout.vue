@@ -24,7 +24,7 @@ const menus = [
   { path: "/interfaces", label: "接口管理", icon: Grid },
   { path: "/apps", label: "应用中心", icon: Document },
   { path: "/logs", label: "调用链追踪", icon: Search },
-  { path: "/stats", label: "数据统计", icon: DataAnalysis },
+  { path: "/stats", label: "数据分析", icon: DataAnalysis },
   { path: "/settings", label: "系统设置", icon: Setting },
 ];
 

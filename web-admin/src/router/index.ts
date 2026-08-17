@@ -49,7 +49,7 @@ const router = createRouter({
           path: "stats",
           name: "stats",
           component: () => import("@/views/stats/index.vue"),
-          meta: { title: "数据统计" },
+          meta: { title: "数据分析" },
         },
         {
           path: "settings",

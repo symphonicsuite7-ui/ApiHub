@@ -1,0 +1,107 @@
+// ============================================================
+// ApiHub 设计 Token — 仅变量与 Mixin（组件内 @use 安全）
+// ============================================================
+
+// --- 颜色 ---
+$color-primary: #2563eb !default;
+$color-primary-hover: #1d4ed8 !default;
+$color-primary-light: #3b82f6 !default;
+$color-accent: #38bdf8 !default;
+
+$color-bg-base: #0f172a !default;
+$color-bg-elevated: #111827 !default;
+$color-bg-subtle: #1e293b !default;
+$color-bg-overlay: rgba(15, 23, 42, 0.72) !default;
+
+$color-border: #1f2937 !default;
+$color-border-light: #334155 !default;
+
+$color-text-primary: #f8fafc !default;
+$color-text-secondary: #94a3b8 !default;
+$color-text-muted: #64748b !default;
+
+$color-success: #22c55e !default;
+$color-warning: #f59e0b !default;
+$color-danger: #ef4444 !default;
+
+$color-sidebar-active-bg: rgba(37, 99, 235, 0.16) !default;
+$color-sidebar-hover-bg: rgba(30, 41, 59, 0.85) !default;
+
+// --- 字体 ---
+$font-family-base: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif !default;
+$font-family-mono: ui-monospace, Consolas, "Courier New", monospace !default;
+
+$font-size-xs: 11px !default;
+$font-size-sm: 12px !default;
+$font-size-base: 14px !default;
+$font-size-md: 15px !default;
+$font-size-lg: 16px !default;
+$font-size-xl: 20px !default;
+
+$font-weight-medium: 500 !default;
+$font-weight-semibold: 600 !default;
+$font-weight-bold: 700 !default;
+
+$line-height-base: 1.5 !default;
+
+// --- 圆角 ---
+$radius-xs: 4px !default;
+$radius-sm: 6px !default;
+$radius-md: 8px !default;
+$radius-lg: 10px !default;
+$radius-xl: 12px !default;
+$radius-full: 999px !default;
+
+// --- 阴影 ---
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18) !default;
+$shadow-md: 0 1px 3px rgba(0, 0, 0, 0.24), 0 4px 12px rgba(0, 0, 0, 0.12) !default;
+$shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.28) !default;
+$shadow-sidebar: 4px 0 24px rgba(0, 0, 0, 0.2) !default;
+
+// --- 布局 ---
+$header-height: 56px !default;
+$sidebar-width: 220px !default;
+$sidebar-collapsed-width: 64px !default;
+$content-max-width: 1400px !default;
+
+// --- 断点 ---
+$breakpoint-sm: 720px !default;
+$breakpoint-md: 960px !default;
+$breakpoint-lg: 1100px !default;
+$breakpoint-xl: 1400px !default;
+
+// --- 过渡 ---
+$transition-fast: 0.15s ease !default;
+$transition-base: 0.2s ease !default;
+
+@mixin respond-down($breakpoint) {
+  @if $breakpoint == sm {
+    @media (max-width: #{$breakpoint-sm}) {
+      @content;
+    }
+  } @else if $breakpoint == md {
+    @media (max-width: #{$breakpoint-md}) {
+      @content;
+    }
+  } @else if $breakpoint == lg {
+    @media (max-width: #{$breakpoint-lg}) {
+      @content;
+    }
+  } @else if $breakpoint == xl {
+    @media (max-width: #{$breakpoint-xl}) {
+      @content;
+    }
+  }
+}
+
+@mixin respond-up($breakpoint) {
+  @if $breakpoint == md {
+    @media (min-width: #{$breakpoint-md + 1}) {
+      @content;
+    }
+  } @else if $breakpoint == lg {
+    @media (min-width: #{$breakpoint-lg + 1}) {
+      @content;
+    }
+  }
+}

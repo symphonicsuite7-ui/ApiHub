@@ -4,7 +4,9 @@ import { CopyDocument, Search } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { fetchLogs } from "@/api/admin";
 import PageHeader from "@/components/PageHeader.vue";
-import type { InvokeLog } from "@/types";
+import { withLoading } from "@/utils/async";
+import { logBarClass, spanStatusColor, statusLabel, statusTagType } from "@/utils/httpStatus";
+import type { InvokeLog, TraceSpan } from "@/types";
 
 const loading = ref(false);
 const logs = ref<InvokeLog[]>([]);
@@ -38,34 +40,9 @@ const filtered = computed(() =>
 );
 
 onMounted(async () => {
-  loading.value = true;
-  logs.value = await fetchLogs();
-  loading.value = false;
+  const result = await withLoading(loading, () => fetchLogs());
+  if (result) logs.value = result;
 });
-
-function statusLabel(code: number) {
-  if (code >= 200 && code < 300) return "成功";
-  if (code === 429) return "限流";
-  return "失败";
-}
-
-function statusType(code: number) {
-  if (code >= 200 && code < 300) return "success";
-  if (code === 429) return "warning";
-  return "danger";
-}
-
-function barClass(code: number) {
-  if (code >= 500) return "bar-error";
-  if (code === 429) return "bar-warn";
-  return "bar-ok";
-}
-
-function spanColor(status: string) {
-  if (status === "error") return "#ef4444";
-  if (status === "warning") return "#f59e0b";
-  return "#22c55e";
-}
 
 function openDetail(item: InvokeLog) {
   current.value = item;
@@ -83,6 +60,10 @@ function jsonPretty(data: unknown) {
 
 function resetFilters() {
   filters.value = { traceId: "", appId: "", apiName: "", timeRange: [] };
+}
+
+function spanColor(status: TraceSpan["status"]) {
+  return spanStatusColor(status);
 }
 </script>
 
@@ -122,7 +103,7 @@ function resetFilters() {
         v-for="item in filtered"
         :key="item.id"
         class="card log-row"
-        :class="barClass(item.statusCode)"
+        :class="logBarClass(item.statusCode)"
         @click="openDetail(item)"
       >
         <div class="row-main">
@@ -153,7 +134,7 @@ function resetFilters() {
             </div>
             <div class="cell status-cell">
               <span class="label">状态</span>
-              <el-tag size="small" :type="statusType(item.statusCode)">
+              <el-tag size="small" :type="statusTagType(item.statusCode)">
                 {{ statusLabel(item.statusCode) }} · {{ item.statusCode }}
               </el-tag>
             </div>
@@ -168,7 +149,7 @@ function resetFilters() {
       <template v-if="current">
         <div class="drawer-head">
           <code class="trace-big">{{ current.traceId }}</code>
-          <el-tag :type="statusType(current.statusCode)">{{ statusLabel(current.statusCode) }}</el-tag>
+          <el-tag :type="statusTagType(current.statusCode)">{{ statusLabel(current.statusCode) }}</el-tag>
         </div>
 
         <section class="drawer-block">

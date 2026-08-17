@@ -1,0 +1,161 @@
+@use "./variables" as *;
+
+// ============================================================
+// CSS 变量导出 + 全局基础样式（入口文件，仅 main.ts 引入一次）
+// ============================================================
+
+:root {
+  --color-primary: #{$color-primary};
+  --color-primary-hover: #{$color-primary-hover};
+  --color-primary-light: #{$color-primary-light};
+  --color-accent: #{$color-accent};
+
+  --bg-base: #{$color-bg-base};
+  --bg-elevated: #{$color-bg-elevated};
+  --bg-subtle: #{$color-bg-subtle};
+  --bg-overlay: #{$color-bg-overlay};
+
+  --border: #{$color-border};
+  --border-light: #{$color-border-light};
+
+  --text-primary: #{$color-text-primary};
+  --text-secondary: #{$color-text-secondary};
+  --text-muted: #{$color-text-muted};
+
+  --success: #{$color-success};
+  --warning: #{$color-warning};
+  --danger: #{$color-danger};
+
+  --primary: #{$color-primary};
+  --primary-hover: #{$color-primary-hover};
+  --accent: #{$color-accent};
+
+  --font-family: #{$font-family-base};
+  --font-family-mono: #{$font-family-mono};
+
+  --font-size-xs: #{$font-size-xs};
+  --font-size-sm: #{$font-size-sm};
+  --font-size-base: #{$font-size-base};
+  --font-size-md: #{$font-size-md};
+  --font-size-lg: #{$font-size-lg};
+  --font-size-xl: #{$font-size-xl};
+
+  --radius-xs: #{$radius-xs};
+  --radius-sm: #{$radius-sm};
+  --radius-md: #{$radius-md};
+  --radius-lg: #{$radius-lg};
+  --radius-xl: #{$radius-xl};
+  --radius-card: #{$radius-xl};
+  --radius-btn: #{$radius-md};
+  --radius-full: #{$radius-full};
+
+  --shadow-sm: #{$shadow-sm};
+  --shadow-md: #{$shadow-md};
+  --shadow-lg: #{$shadow-lg};
+  --shadow-card: #{$shadow-md};
+
+  --header-h: #{$header-height};
+  --sidebar-w: #{$sidebar-width};
+  --sidebar-collapsed-w: #{$sidebar-collapsed-width};
+  --content-max-w: #{$content-max-width};
+
+  --transition-fast: #{$transition-fast};
+  --transition-base: #{$transition-base};
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: $line-height-base;
+  -webkit-font-smoothing: antialiased;
+}
+
+html.dark {
+  --el-color-primary: #{$color-primary};
+  --el-color-primary-light-3: #{$color-primary-light};
+  --el-bg-color: #{$color-bg-elevated};
+  --el-bg-color-overlay: #{$color-bg-elevated};
+  --el-bg-color-page: #{$color-bg-base};
+  --el-fill-color-blank: #{$color-bg-elevated};
+  --el-text-color-primary: #{$color-text-primary};
+  --el-text-color-regular: #{$color-text-secondary};
+  --el-border-color: #{$color-border};
+  --el-border-color-light: #{$color-border-light};
+  --el-border-radius-base: #{$radius-md};
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page {
+  padding: 24px 28px 40px;
+  max-width: var(--content-max-w);
+
+  @include respond-down(sm) {
+    padding: 16px;
+  }
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+
+  h2 {
+    margin: 0 0 6px;
+    font-size: var(--font-size-xl);
+    font-weight: $font-weight-semibold;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+}
+
+.card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+
+  @include respond-down(lg) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include respond-down(sm) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+
+  @include respond-down(lg) {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  @include respond-down(sm) {
+    grid-template-columns: 1fr;
+  }
+}

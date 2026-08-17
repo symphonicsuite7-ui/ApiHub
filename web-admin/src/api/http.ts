@@ -1,5 +1,6 @@
 import axios from "axios";
 import router from "@/router";
+import type { ApiResult } from "@/types";
 import { clearToken, getToken } from "@/utils/auth";
 
 /** 开发走 Vite 代理，生产走 Nginx 反代，均使用相对路径 /api */
@@ -7,6 +8,16 @@ const http = axios.create({
   baseURL: "/api",
   timeout: 15000,
 });
+
+/** 判断是否为标准 ApiResult 响应体 */
+export function isApiResult<T = unknown>(body: unknown): body is ApiResult<T> {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "code" in body &&
+    typeof (body as ApiResult<T>).code === "number"
+  );
+}
 
 http.interceptors.request.use((config) => {
   const token = getToken();
@@ -19,7 +30,7 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => {
     const body = response.data;
-    if (body && typeof body.code === "number" && body.code !== 0) {
+    if (isApiResult(body) && body.code !== 0) {
       const msg = body.msg || "请求失败";
       if (body.code === 401) {
         clearToken();

@@ -1,37 +1,58 @@
-import http from "@/api/http";
+import http, { isApiResult } from "@/api/http";
 import { enrichInterface, enrichLog, mockApps, mockAnalytics, mockInterfaces, mockLogs, mockOverview } from "@/api/mock";
 import type { ApiApp, ApiInterface, ApiResult, AnalyticsStat, InvokeLog, OverviewStat } from "@/types";
 
-/** 优先真实接口，失败时回退演示数据 */
-export async function fetchInterfaces(): Promise<ApiInterface[]> {
+/** 真实接口优先，失败回退 mock（便于演示与联调过渡） */
+async function fetchWithMockFallback<T>(fetcher: () => Promise<T>, fallback: T): Promise<T> {
   try {
-    const res = await http.get<ApiResult<ApiInterface[]>>("/admin/interfaces");
-    const list = res.data.data || [];
-    return list.map(enrichInterface);
+    return await fetcher();
   } catch {
-    return mockInterfaces;
+    return fallback;
   }
 }
 
+export async function fetchInterfaces(): Promise<ApiInterface[]> {
+  return fetchWithMockFallback(async () => {
+    const res = await http.get<ApiResult<ApiInterface[]>>("/admin/interfaces");
+    const body = res.data;
+    const list = isApiResult(body) ? body.data || [] : [];
+    return list.map(enrichInterface);
+  }, mockInterfaces);
+}
+
 export async function fetchInterfaceById(id: number): Promise<ApiInterface | null> {
+  if (!Number.isFinite(id) || id <= 0) return null;
   const list = await fetchInterfaces();
   return list.find((item) => item.id === id) || null;
 }
 
 export async function fetchOverview(): Promise<OverviewStat> {
-  return Promise.resolve(mockOverview);
+  return fetchWithMockFallback(async () => {
+    const res = await http.get<ApiResult<OverviewStat>>("/admin/overview");
+    return isApiResult(res.data) ? res.data.data : mockOverview;
+  }, mockOverview);
 }
 
 export async function fetchAnalytics(): Promise<AnalyticsStat> {
-  return Promise.resolve(mockAnalytics);
+  return fetchWithMockFallback(async () => {
+    const res = await http.get<ApiResult<AnalyticsStat>>("/admin/analytics");
+    return isApiResult(res.data) ? res.data.data : mockAnalytics;
+  }, mockAnalytics);
 }
 
 export async function fetchApps(): Promise<ApiApp[]> {
-  return Promise.resolve(mockApps);
+  return fetchWithMockFallback(async () => {
+    const res = await http.get<ApiResult<ApiApp[]>>("/admin/apps");
+    return isApiResult(res.data) ? res.data.data || [] : mockApps;
+  }, mockApps);
 }
 
 export async function fetchLogs(): Promise<InvokeLog[]> {
-  return Promise.resolve(mockLogs);
+  return fetchWithMockFallback(async () => {
+    const res = await http.get<ApiResult<InvokeLog[]>>("/admin/logs");
+    const list = isApiResult(res.data) ? res.data.data || [] : [];
+    return list.map(enrichLog);
+  }, mockLogs);
 }
 
 export async function fetchLogByTraceId(traceId: string): Promise<InvokeLog | null> {

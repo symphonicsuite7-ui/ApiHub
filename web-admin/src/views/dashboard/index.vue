@@ -1,20 +1,29 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import * as echarts from "echarts";
+import { computed, onMounted, ref } from "vue";
 import { Connection, Cpu, Grid, Histogram, Monitor } from "@element-plus/icons-vue";
 import { fetchLogs, fetchOverview } from "@/api/admin";
-import { useUserStore } from "@/stores/user";
+import { useClock } from "@/composables/useClock";
+import {
+  chartPalette,
+  darkCategoryAxis,
+  darkTooltip,
+  darkValueAxis,
+  lineAreaGradient,
+  useEcharts,
+} from "@/composables/useEcharts";
 import StatCard from "@/components/StatCard.vue";
+import { withLoading } from "@/utils/async";
+import { statusLabel, statusTagType } from "@/utils/httpStatus";
+import { useUserStore } from "@/stores/user";
 import type { InvokeLog, OverviewStat } from "@/types";
 
 const userStore = useUserStore();
 const loading = ref(true);
 const data = ref<OverviewStat | null>(null);
 const logs = ref<InvokeLog[]>([]);
-const nowText = ref("");
+const { nowText } = useClock();
 const trendRef = ref<HTMLDivElement | null>(null);
-let trendChart: echarts.ECharts | null = null;
-let clockTimer: number | null = null;
+const { mount } = useEcharts();
 
 const greeting = computed(() => {
   const hour = new Date().getHours();
@@ -35,37 +44,13 @@ const rankMax = computed(() => {
   return Math.max(...list.map((i) => i.value), 1);
 });
 
-function tickClock() {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  nowText.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
 function renderTrend(stat: OverviewStat) {
-  if (!trendRef.value) return;
-  trendChart = echarts.init(trendRef.value);
-  trendChart.setOption({
+  mount(trendRef.value, {
     backgroundColor: "transparent",
-    tooltip: {
-      trigger: "axis",
-      backgroundColor: "#111827",
-      borderColor: "#334155",
-      textStyle: { color: "#f8fafc" },
-    },
+    tooltip: darkTooltip("axis"),
     grid: { left: 48, right: 16, top: 28, bottom: 32 },
-    xAxis: {
-      type: "category",
-      data: stat.trendLabels,
-      boundaryGap: false,
-      axisLine: { lineStyle: { color: "#1f2937" } },
-      axisLabel: { color: "#94a3b8" },
-      axisTick: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      splitLine: { lineStyle: { color: "#1f2937", type: "dashed" } },
-      axisLabel: { color: "#94a3b8" },
-    },
+    xAxis: darkCategoryAxis(stat.trendLabels, false),
+    yAxis: darkValueAxis(),
     series: [
       {
         name: "调用次数",
@@ -74,50 +59,25 @@ function renderTrend(stat: OverviewStat) {
         data: stat.callTrend,
         symbol: "circle",
         symbolSize: 7,
-        itemStyle: { color: "#38bdf8" },
-        lineStyle: { color: "#2563eb", width: 2.5 },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: "rgba(37, 99, 235, 0.35)" },
-            { offset: 1, color: "rgba(37, 99, 235, 0.02)" },
-          ]),
-        },
+        itemStyle: { color: chartPalette.accent },
+        lineStyle: { color: chartPalette.primary, width: 2.5 },
+        areaStyle: { color: lineAreaGradient() },
       },
     ],
   });
 }
 
-function statusType(code: number) {
-  if (code >= 200 && code < 300) return "success";
-  if (code === 429) return "warning";
-  return "danger";
-}
-
-function statusText(code: number) {
-  if (code >= 200 && code < 300) return "成功";
-  if (code === 429) return "限流";
-  return "失败";
-}
-
-function resize() {
-  trendChart?.resize();
-}
-
 onMounted(async () => {
-  tickClock();
-  clockTimer = window.setInterval(tickClock, 1000);
-  const [overview, logList] = await Promise.all([fetchOverview(), fetchLogs()]);
-  data.value = overview;
-  logs.value = logList;
-  loading.value = false;
-  requestAnimationFrame(() => renderTrend(overview));
-  window.addEventListener("resize", resize);
-});
+  const result = await withLoading(loading, async () => {
+    const [overview, logList] = await Promise.all([fetchOverview(), fetchLogs()]);
+    return { overview, logList };
+  });
 
-onBeforeUnmount(() => {
-  if (clockTimer) window.clearInterval(clockTimer);
-  window.removeEventListener("resize", resize);
-  trendChart?.dispose();
+  if (result) {
+    data.value = result.overview;
+    logs.value = result.logList;
+    requestAnimationFrame(() => renderTrend(result.overview));
+  }
 });
 </script>
 
@@ -222,7 +182,7 @@ onBeforeUnmount(() => {
           </el-table-column>
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
-              <el-tag size="small" :type="statusType(row.statusCode)">{{ statusText(row.statusCode) }}</el-tag>
+              <el-tag size="small" :type="statusTagType(row.statusCode)">{{ statusLabel(row.statusCode) }}</el-tag>
             </template>
           </el-table-column>
         </el-table>

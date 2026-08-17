@@ -4,7 +4,9 @@ import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { Plus, Search } from "@element-plus/icons-vue";
 import { fetchInterfaces } from "@/api/admin";
+import MethodBadge from "@/components/MethodBadge.vue";
 import PageHeader from "@/components/PageHeader.vue";
+import { withLoading } from "@/utils/async";
 import type { ApiInterface } from "@/types";
 
 const router = useRouter();
@@ -34,14 +36,9 @@ const filtered = computed(() =>
 );
 
 onMounted(async () => {
-  loading.value = true;
-  list.value = await fetchInterfaces();
-  loading.value = false;
+  const result = await withLoading(loading, () => fetchInterfaces());
+  if (result) list.value = result;
 });
-
-function methodClass(method: string) {
-  return "m-" + method.toLowerCase();
-}
 
 function openCreate() {
   editing.value = null;
@@ -100,7 +97,7 @@ function goDetail(item: ApiInterface) {
         </div>
 
         <div class="path-row">
-          <span class="method" :class="methodClass(item.method)">{{ item.method }}</span>
+          <MethodBadge :method="item.method" />
           <code>{{ item.path }}</code>
         </div>
 
@@ -201,17 +198,6 @@ function goDetail(item: ApiInterface) {
   background: rgba(15, 23, 42, 0.65);
   border: 1px solid var(--border);
 }
-.method {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  letter-spacing: 0.4px;
-}
-.m-get { background: rgba(37, 99, 235, 0.2); color: #93c5fd; }
-.m-post { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
-.m-put { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
-.m-delete { background: rgba(239, 68, 68, 0.18); color: #f87171; }
 code {
   font-family: ui-monospace, Consolas, monospace;
   font-size: 13px;

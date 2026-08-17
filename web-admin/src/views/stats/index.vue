@@ -1,14 +1,24 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import * as echarts from "echarts";
 import { Histogram, Monitor, Odometer, Timer } from "@element-plus/icons-vue";
 import { fetchAnalytics } from "@/api/admin";
+import { useClock } from "@/composables/useClock";
+import {
+  chartPalette,
+  darkCategoryAxis,
+  darkTooltip,
+  darkValueAxis,
+  lineAreaGradient,
+  useEcharts,
+} from "@/composables/useEcharts";
 import StatCard from "@/components/StatCard.vue";
+import { withLoading } from "@/utils/async";
 import type { AnalyticsStat } from "@/types";
 
 const loading = ref(true);
 const data = ref<AnalyticsStat | null>(null);
-const nowText = ref("");
+const { nowText } = useClock();
 
 const trendRef = ref<HTMLDivElement | null>(null);
 const pieRef = ref<HTMLDivElement | null>(null);
@@ -16,49 +26,17 @@ const apiRankRef = ref<HTMLDivElement | null>(null);
 const appRankRef = ref<HTMLDivElement | null>(null);
 const latencyRef = ref<HTMLDivElement | null>(null);
 
-let charts: echarts.ECharts[] = [];
-let clockTimer: number | null = null;
-
-const tooltipBase = {
-  backgroundColor: "rgba(15, 23, 42, 0.92)",
-  borderColor: "#334155",
-  textStyle: { color: "#f8fafc", fontSize: 12 },
-};
-
-function tickClock() {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  nowText.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function initChart(el: HTMLDivElement | null, option: echarts.EChartsOption) {
-  if (!el) return;
-  const chart = echarts.init(el);
-  chart.setOption(option);
-  charts.push(chart);
-}
+const { mount, disposeAll } = useEcharts();
 
 function renderCharts(stat: AnalyticsStat) {
-  charts.forEach((c) => c.dispose());
-  charts = [];
+  disposeAll();
 
-  initChart(trendRef.value, {
+  mount(trendRef.value, {
     backgroundColor: "transparent",
-    tooltip: { ...tooltipBase, trigger: "axis" },
+    tooltip: darkTooltip("axis"),
     grid: { left: 52, right: 20, top: 36, bottom: 32 },
-    xAxis: {
-      type: "category",
-      data: stat.trendLabels,
-      boundaryGap: false,
-      axisLine: { lineStyle: { color: "#1f2937" } },
-      axisLabel: { color: "#94a3b8" },
-      axisTick: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      splitLine: { lineStyle: { color: "#1f2937", type: "dashed" } },
-      axisLabel: { color: "#94a3b8" },
-    },
+    xAxis: darkCategoryAxis(stat.trendLabels, false),
+    yAxis: darkValueAxis(),
     series: [
       {
         name: "调用量",
@@ -67,21 +45,16 @@ function renderCharts(stat: AnalyticsStat) {
         data: stat.callTrend,
         symbol: "circle",
         symbolSize: 8,
-        itemStyle: { color: "#38bdf8", borderColor: "#0f172a", borderWidth: 2 },
-        lineStyle: { color: "#2563eb", width: 3 },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: "rgba(37, 99, 235, 0.45)" },
-            { offset: 1, color: "rgba(37, 99, 235, 0.02)" },
-          ]),
-        },
+        itemStyle: { color: chartPalette.accent, borderColor: "#0f172a", borderWidth: 2 },
+        lineStyle: { color: chartPalette.primary, width: 3 },
+        areaStyle: { color: lineAreaGradient() },
       },
     ],
   });
 
-  initChart(pieRef.value, {
+  mount(pieRef.value, {
     backgroundColor: "transparent",
-    tooltip: { ...tooltipBase, trigger: "item", formatter: "{b}: {c} ({d}%)" },
+    tooltip: { ...darkTooltip("item"), formatter: "{b}: {c} ({d}%)" },
     legend: {
       bottom: 4,
       itemWidth: 10,
@@ -111,9 +84,9 @@ function renderCharts(stat: AnalyticsStat) {
   const apiNames = stat.topInterfaces.map((i) => i.name);
   const apiValues = stat.topInterfaces.map((i) => i.value);
 
-  initChart(apiRankRef.value, {
+  mount(apiRankRef.value, {
     backgroundColor: "transparent",
-    tooltip: { ...tooltipBase, trigger: "axis", axisPointer: { type: "shadow" } },
+    tooltip: { ...darkTooltip("axis"), axisPointer: { type: "shadow" } },
     grid: { left: 100, right: 24, top: 16, bottom: 24 },
     xAxis: {
       type: "value",
@@ -155,9 +128,9 @@ function renderCharts(stat: AnalyticsStat) {
   const appNames = stat.topApps.map((i) => i.name);
   const appValues = stat.topApps.map((i) => i.value);
 
-  initChart(appRankRef.value, {
+  mount(appRankRef.value, {
     backgroundColor: "transparent",
-    tooltip: { ...tooltipBase, trigger: "axis", axisPointer: { type: "shadow" } },
+    tooltip: { ...darkTooltip("axis"), axisPointer: { type: "shadow" } },
     grid: { left: 100, right: 24, top: 16, bottom: 24 },
     xAxis: {
       type: "value",
@@ -198,9 +171,9 @@ function renderCharts(stat: AnalyticsStat) {
 
   const latencyNames = stat.latencyByInterface.map((i) => i.name);
 
-  initChart(latencyRef.value, {
+  mount(latencyRef.value, {
     backgroundColor: "transparent",
-    tooltip: { ...tooltipBase, trigger: "axis", axisPointer: { type: "shadow" } },
+    tooltip: { ...darkTooltip("axis"), axisPointer: { type: "shadow" } },
     legend: {
       top: 4,
       right: 12,
@@ -255,26 +228,12 @@ function renderCharts(stat: AnalyticsStat) {
   });
 }
 
-function resize() {
-  charts.forEach((c) => c.resize());
-}
-
 onMounted(async () => {
-  tickClock();
-  clockTimer = window.setInterval(tickClock, 1000);
-  data.value = await fetchAnalytics();
-  loading.value = false;
-  requestAnimationFrame(() => {
-    if (data.value) renderCharts(data.value);
-  });
-  window.addEventListener("resize", resize);
-});
-
-onBeforeUnmount(() => {
-  if (clockTimer) window.clearInterval(clockTimer);
-  window.removeEventListener("resize", resize);
-  charts.forEach((c) => c.dispose());
-  charts = [];
+  const result = await withLoading(loading, () => fetchAnalytics());
+  if (result) {
+    data.value = result;
+    requestAnimationFrame(() => renderCharts(result));
+  }
 });
 </script>
 

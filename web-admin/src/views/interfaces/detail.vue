@@ -4,6 +4,8 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { ArrowLeft } from "@element-plus/icons-vue";
 import { fetchInterfaceById } from "@/api/admin";
+import MethodBadge from "@/components/MethodBadge.vue";
+import { withLoading } from "@/utils/async";
 import type { ApiInterface } from "@/types";
 
 const route = useRoute();
@@ -15,16 +17,20 @@ const example = computed(() => api.value?.responseExample || "{}");
 
 onMounted(async () => {
   const id = Number(route.params.id);
-  api.value = await fetchInterfaceById(id);
-  loading.value = false;
-  if (!api.value) {
-    ElMessage.error("未找到该接口资产");
+  if (!Number.isFinite(id) || id <= 0) {
+    ElMessage.error("无效的接口 ID");
+    router.replace("/interfaces");
+    return;
   }
-});
 
-function methodClass(method: string) {
-  return "m-" + method.toLowerCase();
-}
+  const result = await withLoading(loading, () => fetchInterfaceById(id));
+  if (!result) {
+    ElMessage.error("未找到该接口资产");
+    router.replace("/interfaces");
+    return;
+  }
+  api.value = result;
+});
 
 function copyPath() {
   if (!api.value) return;
@@ -55,7 +61,7 @@ function copyJson() {
           </div>
           <p>{{ api.description || "暂无描述" }}</p>
           <div class="path-row">
-            <span class="method" :class="methodClass(api.method)">{{ api.method }}</span>
+            <MethodBadge :method="api.method" />
             <code>{{ api.path }}</code>
             <el-button size="small" text type="primary" @click="copyPath">复制</el-button>
           </div>
@@ -179,16 +185,6 @@ function copyJson() {
   background: rgba(15, 23, 42, 0.65);
   border: 1px solid var(--border);
 }
-.method {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.m-get { background: rgba(37, 99, 235, 0.2); color: #93c5fd; }
-.m-post { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
-.m-put { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
-.m-delete { background: rgba(239, 68, 68, 0.18); color: #f87171; }
 code {
   font-family: ui-monospace, Consolas, monospace;
   color: var(--accent);

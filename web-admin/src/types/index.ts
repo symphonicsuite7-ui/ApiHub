@@ -11,7 +11,14 @@ export interface LoginVO {
   username: string;
   nickname?: string;
   roles: string[];
+  permissions?: string[];
 }
+
+/** HTTP 请求方法 */
+export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+
+/** 接口上下线状态 */
+export type ApiStatus = 0 | 1;
 
 export interface ApiParam {
   name: string;
@@ -25,11 +32,12 @@ export interface ApiInterface {
   id: number;
   name: string;
   path: string;
-  method: string;
+  method: HttpMethod | string;
   description?: string;
   version: string;
   category?: string;
-  status: number;
+  status: ApiStatus | number;
+  /** @deprecated 后端 snake_case，前端统一使用 createTime */
   create_time?: string;
   createTime?: string;
   callCount?: number;
@@ -100,7 +108,6 @@ export interface OverviewStat {
   topInterfaces: { name: string; value: number }[];
 }
 
-/** 数据分析大屏指标 */
 export interface AnalyticsStat {
   todayCalls: number;
   successRate: number;
@@ -115,4 +122,10 @@ export interface AnalyticsStat {
   statusRatio: { name: string; value: number }[];
   latencyByInterface: { name: string; avgMs: number; p95Ms: number }[];
   topApps: { name: string; value: number }[];
+}
+
+/** 面包屑导航项 */
+export interface BreadcrumbItem {
+  title: string;
+  path?: string;
 }

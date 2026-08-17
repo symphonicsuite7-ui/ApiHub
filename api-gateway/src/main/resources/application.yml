@@ -1,15 +1,19 @@
 server:
   port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 spring:
   application:
     name: api-gateway
-  data:
-    redis:
-      host: 127.0.0.1
-      port: 6379
 
 apihub:
+  jwt:
+    secret: ApiHubCourseDesignSecretKeyMustBeLongEnough2026
+    expire-seconds: 7200
   routes:
     auth: http://127.0.0.1:8081
     admin: http://127.0.0.1:8082

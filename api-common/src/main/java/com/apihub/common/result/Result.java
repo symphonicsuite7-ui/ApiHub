@@ -29,6 +29,10 @@ public class Result<T> {
         return r;
     }
 
+    public static <T> Result<T> fail(ErrorCode errorCode) {
+        return fail(errorCode.getCode(), errorCode.getMsg());
+    }
+
     public Result<T> traceId(String traceId) {
         this.traceId = traceId;
         return this;

@@ -48,6 +48,8 @@ web-admin/.env.local
 web-admin/.env.*.local
 
 # Package manager
+/node_modules/
+/package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

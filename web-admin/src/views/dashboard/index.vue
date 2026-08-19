@@ -15,9 +15,11 @@ import StatCard from "@/components/StatCard.vue";
 import { withLoading } from "@/utils/async";
 import { statusLabel, statusTagType } from "@/utils/httpStatus";
 import { useUserStore } from "@/stores/user";
+import { useAccess } from "@/composables/useAccess";
 import type { InvokeLog, OverviewStat } from "@/types";
 
 const userStore = useUserStore();
+const { Perm, can, workspace, isAdmin } = useAccess();
 const loading = ref(true);
 const data = ref<OverviewStat | null>(null);
 const logs = ref<InvokeLog[]>([]);
@@ -86,8 +88,9 @@ onMounted(async () => {
     <!-- 欢迎区 -->
     <section class="hero card">
       <div>
-        <h1>ApiHub 控制台</h1>
-        <p>企业微服务接口管理平台</p>
+        <el-tag size="small" :type="isAdmin ? 'danger' : 'success'" effect="plain">{{ workspace.badge }}</el-tag>
+        <h1>{{ workspace.dashboardTitle }}</h1>
+        <p>{{ workspace.dashboardDesc }}</p>
         <div class="hello">
           {{ greeting }}，{{ userStore.displayName }}
         </div>
@@ -104,22 +107,22 @@ onMounted(async () => {
 
     <!-- 核心指标 -->
     <div class="stat-grid" v-if="data">
-      <StatCard label="API 数量" :value="data.apiCount" :trend="data.apiTrend" :icon="Grid" tone="blue" />
+      <StatCard :label="isAdmin ? 'API 数量' : '可调用接口'" :value="data.apiCount" :trend="data.apiTrend" :icon="Grid" tone="blue" />
       <StatCard
-        label="今日调用次数"
+        :label="isAdmin ? '今日调用次数' : '我的今日调用'"
         :value="data.todayCalls.toLocaleString()"
         :trend="data.callTrendPct"
         :icon="Histogram"
         tone="cyan"
       />
+      <StatCard label="接口成功率" :value="data.successRate.toFixed(2) + '%'" :trend="data.successTrend" :icon="Monitor" tone="green" />
       <StatCard
-        label="接口成功率"
-        :value="data.successRate.toFixed(2) + '%'"
-        :trend="data.successTrend"
-        :icon="Monitor"
-        tone="green"
+        :label="isAdmin ? '活跃应用数量' : '我的应用数量'"
+        :value="data.activeApps"
+        :trend="data.appTrend"
+        :icon="Connection"
+        tone="violet"
       />
-      <StatCard label="活跃应用数量" :value="data.activeApps" :trend="data.appTrend" :icon="Connection" tone="violet" />
     </div>
 
     <!-- 数据分析 -->
@@ -159,12 +162,12 @@ onMounted(async () => {
     </div>
 
     <!-- 实时日志 + 服务健康 -->
-    <div class="bottom-grid">
+    <div class="bottom-grid" :class="{ single: !can(Perm.OPS_HEALTH) }">
       <section class="card panel">
         <div class="panel-head">
           <div>
-            <h3>实时调用日志</h3>
-            <p>最近开放接口调用</p>
+            <h3>{{ isAdmin ? '实时调用日志' : '我的最近调用' }}</h3>
+            <p>{{ isAdmin ? '最近开放接口调用' : '当前账号应用的最近调用' }}</p>
           </div>
         </div>
         <el-table :data="logs" size="small">
@@ -188,7 +191,7 @@ onMounted(async () => {
         </el-table>
       </section>
 
-      <section class="card panel">
+      <section v-if="can(Perm.OPS_HEALTH)" class="card panel">
         <div class="panel-head">
           <div>
             <h3>服务健康状态</h3>
@@ -230,7 +233,7 @@ onMounted(async () => {
 }
 
 .hero h1 {
-  margin: 0 0 6px;
+  margin: 8px 0 6px;
   font-size: 24px;
   font-weight: 700;
 }
@@ -379,6 +382,10 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 1.7fr 1fr;
   gap: 16px;
+}
+
+.bottom-grid.single {
+  grid-template-columns: 1fr;
 }
 
 .mono {

@@ -1,8 +1,18 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { NAV_ITEMS } from "@/config/navigation";
+import { findNavByPath, NAV_ITEMS, resolveNavTitle } from "@/config/navigation";
 import { getToken } from "@/utils/auth";
 import { hasPermission, hasRole } from "@/utils/permission";
 import { useUserStore } from "@/stores/user";
+
+function navMeta(index: number, extra: Record<string, unknown> = {}) {
+  const item = NAV_ITEMS[index];
+  return {
+    title: item.pageTitle,
+    roles: item.roles,
+    permissions: item.permissions,
+    ...extra,
+  };
+}
 
 const router = createRouter({
   history: createWebHistory(),
@@ -22,19 +32,20 @@ const router = createRouter({
           path: "dashboard",
           name: "dashboard",
           component: () => import("@/views/dashboard/index.vue"),
-          meta: { title: NAV_ITEMS[0].pageTitle },
+          meta: navMeta(0),
         },
         {
           path: "interfaces",
           name: "interfaces",
           component: () => import("@/views/interfaces/index.vue"),
-          meta: { title: NAV_ITEMS[1].pageTitle },
+          meta: navMeta(1),
         },
         {
           path: "interfaces/:id",
           name: "interface-detail",
           component: () => import("@/views/interfaces/detail.vue"),
           meta: {
+            ...navMeta(1),
             title: "接口详情",
             breadcrumb: [
               { title: NAV_ITEMS[1].pageTitle, path: "/interfaces" },
@@ -46,29 +57,25 @@ const router = createRouter({
           path: "apps",
           name: "apps",
           component: () => import("@/views/apps/index.vue"),
-          meta: { title: NAV_ITEMS[2].pageTitle },
+          meta: navMeta(2),
         },
         {
           path: "logs",
           name: "logs",
           component: () => import("@/views/logs/index.vue"),
-          meta: { title: NAV_ITEMS[3].pageTitle },
+          meta: navMeta(3),
         },
         {
           path: "stats",
           name: "stats",
           component: () => import("@/views/stats/index.vue"),
-          meta: { title: NAV_ITEMS[4].pageTitle },
+          meta: navMeta(4),
         },
         {
           path: "settings",
           name: "settings",
           component: () => import("@/views/settings/index.vue"),
-          meta: {
-            title: NAV_ITEMS[5].pageTitle,
-            roles: NAV_ITEMS[5].roles,
-            permissions: NAV_ITEMS[5].permissions,
-          },
+          meta: navMeta(5),
         },
         {
           path: "403",
@@ -83,14 +90,13 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
-  document.title = `${(to.meta.title as string) || "控制台"} · ApiHub`;
-
   const token = getToken();
 
   if (to.meta.public) {
     if (token && to.path === "/login") {
       return "/dashboard";
     }
+    document.title = `${to.meta.title || "登录"} · ApiHub`;
     return true;
   }
 
@@ -109,18 +115,41 @@ router.beforeEach(async (to) => {
     }
   }
 
-  const roles = userStore.roles;
-  const permissions = userStore.permissions;
+  if (to.name === "forbidden") {
+    document.title = "无权访问 · ApiHub";
+    return true;
+  }
 
-  if (to.meta.roles && !hasRole(roles, to.meta.roles)) {
+  const nav = findNavByPath(to.path);
+  const requiredRoles = to.meta.roles || nav?.roles;
+  const requiredPerms = to.meta.permissions || nav?.permissions;
+
+  if (requiredRoles && !hasRole(userStore.roles, requiredRoles)) {
     return { path: "/403", query: { from: to.fullPath } };
   }
 
-  if (to.meta.permissions && !hasPermission(permissions, to.meta.permissions)) {
+  if (requiredPerms && !hasPermission(userStore.permissions, requiredPerms)) {
     return { path: "/403", query: { from: to.fullPath } };
+  }
+
+  const pageTitle = nav
+    ? resolveNavTitle(nav, userStore.isAdmin)
+    : (to.meta.title as string) || "控制台";
+  if (to.name === "interface-detail") {
+    const listTitle = resolveNavTitle(NAV_ITEMS[1], userStore.isAdmin);
+    to.meta.breadcrumb = [
+      { title: listTitle, path: "/interfaces" },
+      { title: "接口详情" },
+    ];
+    to.meta.title = "接口详情";
+    document.title = `接口详情 · ApiHub`;
+  } else {
+    to.meta.title = pageTitle;
+    document.title = `${pageTitle} · ApiHub`;
   }
 
   return true;
 });
 
 export default router;
+

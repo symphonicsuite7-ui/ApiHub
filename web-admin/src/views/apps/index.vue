@@ -3,9 +3,12 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { CopyDocument, Key, Plus, View } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { fetchApps } from "@/api/admin";
+import CanAccess from "@/components/CanAccess.vue";
 import PageHeader from "@/components/PageHeader.vue";
+import { useAccess } from "@/composables/useAccess";
 import type { ApiApp } from "@/types";
 
+const { Perm, isAdmin } = useAccess();
 const loading = ref(false);
 const apps = ref<ApiApp[]>([]);
 const dialog = ref(false);
@@ -83,12 +86,22 @@ async function copySecret(secret?: string) {
   await navigator.clipboard.writeText(secret);
   ElMessage.success("AppSecret 已复制");
 }
+
+function toggleAppStatus(item: ApiApp) {
+  item.status = item.status === 1 ? 0 : 1;
+  ElMessage.success(item.status === 1 ? "应用已启用（前端演示）" : "应用已停用（前端演示）");
+}
 </script>
 
 <template>
   <div class="page" v-loading="loading">
-    <PageHeader title="我的应用" desc="模拟企业开发者中心，管理 AppId / Secret 与授权能力">
-      <el-button type="primary" :icon="Plus" @click="dialog = true">创建应用</el-button>
+    <PageHeader
+      :title="isAdmin ? '应用中心' : '我的应用'"
+      :desc="isAdmin ? '管理全部应用凭证、启停与配额' : '创建应用、保存 AppId / Secret，用于调用开放接口'"
+    >
+      <CanAccess :permission="Perm.APP_CREATE">
+        <el-button type="primary" :icon="Plus" @click="dialog = true">创建应用</el-button>
+      </CanAccess>
     </PageHeader>
 
     <div class="summary-row">
@@ -158,7 +171,14 @@ async function copySecret(secret?: string) {
 
         <div class="foot">
           <span class="owner">负责人 {{ item.owner || "Admin" }}</span>
-          <span class="time">创建于 {{ item.createTime }}</span>
+          <div class="foot-actions">
+            <span class="time">创建于 {{ item.createTime }}</span>
+            <CanAccess :permission="Perm.APP_MANAGE">
+              <el-button size="small" :type="item.status === 1 ? 'warning' : 'success'" @click="toggleAppStatus(item)">
+                {{ item.status === 1 ? "停用" : "启用" }}
+              </el-button>
+            </CanAccess>
+          </div>
         </div>
       </div>
     </div>
@@ -314,6 +334,11 @@ async function copySecret(secret?: string) {
   justify-content: space-between;
   gap: 12px;
   align-items: center;
+}
+.foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .owner,
 .time {

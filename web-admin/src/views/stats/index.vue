@@ -14,8 +14,10 @@ import {
 } from "@/composables/useEcharts";
 import StatCard from "@/components/StatCard.vue";
 import { withLoading } from "@/utils/async";
+import { useAccess } from "@/composables/useAccess";
 import type { AnalyticsStat } from "@/types";
 
+const { isAdmin } = useAccess();
 const loading = ref(true);
 const data = ref<AnalyticsStat | null>(null);
 const { nowText } = useClock();
@@ -242,9 +244,9 @@ onMounted(async () => {
     <!-- 大屏顶栏 -->
     <header class="screen-hero">
       <div class="hero-left">
-        <div class="hero-badge">MONITORING</div>
-        <h1>ApiHub 数据分析大屏</h1>
-        <p>企业级 API 调用监控 · 实时趋势 · 质量分析</p>
+        <div class="hero-badge">{{ isAdmin ? "PLATFORM" : "MY USAGE" }}</div>
+        <h1>{{ isAdmin ? "ApiHub 数据分析大屏" : "我的用量统计" }}</h1>
+        <p>{{ isAdmin ? "企业级 API 调用监控 · 实时趋势 · 质量分析" : "查看当前账号应用的调用量、成功率与耗时" }}</p>
       </div>
       <div class="hero-right">
         <div class="live-status">

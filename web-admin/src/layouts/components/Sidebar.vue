@@ -13,7 +13,10 @@ const userStore = useUserStore();
 const { sidebarCollapsed, sidebarMobileOpen, closeMobileSidebar } = useLayout();
 
 const visibleMenus = computed(() =>
-  filterMenus(menuConfig, userStore.roles, userStore.permissions)
+  filterMenus(menuConfig, userStore.roles, userStore.permissions).map((item) => ({
+    ...item,
+    label: userStore.isAdmin ? item.label : item.userLabel || item.label,
+  }))
 );
 
 const currentPath = computed(() => route.path);
@@ -58,6 +61,7 @@ function checkActive(path: string) {
     </nav>
 
     <div class="sidebar-footer">
+      <span class="workspace">{{ userStore.isAdmin ? "管理控制台" : "开发者工作台" }}</span>
       <span class="version">ApiHub v1.0</span>
     </div>
   </aside>
@@ -185,6 +189,15 @@ function checkActive(path: string) {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
   transition: opacity var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.workspace {
+  font-size: var(--font-size-xs);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .version {

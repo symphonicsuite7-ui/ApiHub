@@ -95,7 +95,7 @@ async function onRegister() {
           <el-form-item label="密码">
             <el-input v-model="registerForm.password" type="password" show-password placeholder="至少 6 位" size="large" />
           </el-form-item>
-          <p class="hint">用户名注册为 admin 时自动授予管理员角色</p>
+          <p class="hint">用户名注册为 admin 时自动授予管理员，进入管理控制台；其他用户名进入开发者工作台</p>
           <el-button type="primary" size="large" class="full" :loading="loading" native-type="submit">
             注 册
           </el-button>

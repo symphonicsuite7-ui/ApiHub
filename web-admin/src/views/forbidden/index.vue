@@ -16,6 +16,7 @@ const fromPath = computed(() => (route.query.from as string) || "");
       <h2>403 · 无权访问</h2>
       <p>当前账号没有访问该页面的权限，请联系管理员开通。</p>
       <p v-if="fromPath" class="from">请求路径：<code>{{ fromPath }}</code></p>
+      <p class="from">管理员页面不会出现在侧栏，直接输入地址也会被拦截。</p>
       <div class="actions">
         <el-button type="primary" @click="router.push('/dashboard')">返回控制台</el-button>
         <el-button @click="router.back()">返回上一页</el-button>

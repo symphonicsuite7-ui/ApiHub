@@ -3,6 +3,7 @@ import { RouterView, useRouter } from "vue-router";
 import { Bell, SwitchButton } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { provideLayout } from "@/composables/useLayout";
+import { useAccess } from "@/composables/useAccess";
 import { useUserStore } from "@/stores/user";
 import AppHeader from "./components/Header.vue";
 import AppSidebar from "./components/Sidebar.vue";
@@ -12,6 +13,7 @@ provideLayout();
 
 const router = useRouter();
 const userStore = useUserStore();
+const { workspace, isAdmin } = useAccess();
 
 function handleCommand(cmd: string) {
   if (cmd === "logout") {
@@ -29,7 +31,11 @@ function handleCommand(cmd: string) {
   <div class="app-layout">
     <AppHeader>
       <template #actions>
-        <el-badge :value="3" :max="99">
+        <el-tag size="small" :type="isAdmin ? 'danger' : 'success'" effect="dark" class="role-badge">
+          {{ workspace.badge }}
+        </el-tag>
+
+        <el-badge v-if="isAdmin" :value="3" :max="99">
           <el-popover placement="bottom-end" :width="280" trigger="click">
             <template #reference>
               <el-button circle :icon="Bell" />
@@ -129,6 +135,10 @@ function handleCommand(cmd: string) {
 .user-meta span {
   font-size: var(--font-size-xs);
   color: var(--text-muted);
+}
+
+.role-badge {
+  letter-spacing: 0.4px;
 }
 
 .notice-list p {

@@ -5,6 +5,7 @@ import { NAV_ITEMS, type NavItem } from "@/config/navigation";
 export interface MenuItem {
   path: string;
   label: string;
+  userLabel?: string;
   icon: Component;
   roles?: string[];
   permissions?: string[];
@@ -16,6 +17,7 @@ function toMenuItem(item: NavItem): MenuItem {
   return {
     path: item.path,
     label: item.menuLabel,
+    userLabel: item.userMenuLabel,
     icon: item.icon,
     roles: item.roles,
     permissions: item.permissions,

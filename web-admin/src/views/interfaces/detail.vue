@@ -4,12 +4,15 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { ArrowLeft } from "@element-plus/icons-vue";
 import { fetchInterfaceById } from "@/api/admin";
+import CanAccess from "@/components/CanAccess.vue";
 import MethodBadge from "@/components/MethodBadge.vue";
+import { useAccess } from "@/composables/useAccess";
 import { withLoading } from "@/utils/async";
 import type { ApiInterface } from "@/types";
 
 const route = useRoute();
 const router = useRouter();
+const { Perm, isAdmin } = useAccess();
 const loading = ref(true);
 const api = ref<ApiInterface | null>(null);
 
@@ -42,12 +45,20 @@ function copyJson() {
   navigator.clipboard.writeText(example.value);
   ElMessage.success("已复制响应示例");
 }
+
+function toggleStatus() {
+  if (!api.value) return;
+  api.value.status = api.value.status === 1 ? 0 : 1;
+  ElMessage.success(api.value.status === 1 ? "已上线（前端演示）" : "已下线（前端演示）");
+}
 </script>
 
 <template>
   <div class="page" v-loading="loading">
     <div class="back">
-      <el-button :icon="ArrowLeft" text @click="router.push('/interfaces')">返回资产中心</el-button>
+      <el-button :icon="ArrowLeft" text @click="router.push('/interfaces')">
+        {{ isAdmin ? "返回资产中心" : "返回接口市场" }}
+      </el-button>
     </div>
 
     <template v-if="api">
@@ -67,6 +78,15 @@ function copyJson() {
           </div>
         </div>
         <div class="hero-meta">
+          <CanAccess :permission="Perm.API_MANAGE">
+            <el-button
+              size="small"
+              :type="api.status === 1 ? 'warning' : 'success'"
+              @click="toggleStatus"
+            >
+              {{ api.status === 1 ? "下线接口" : "上线接口" }}
+            </el-button>
+          </CanAccess>
           <div><span>版本</span><strong>{{ api.version }}</strong></div>
           <div><span>分类</span><strong>{{ api.category || "-" }}</strong></div>
           <div><span>负责人</span><strong>{{ api.owner || "Admin" }}</strong></div>

@@ -3,11 +3,14 @@ import { computed, onMounted, ref } from "vue";
 import { CopyDocument, Search } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { fetchLogs } from "@/api/admin";
+import CanAccess from "@/components/CanAccess.vue";
 import PageHeader from "@/components/PageHeader.vue";
+import { useAccess } from "@/composables/useAccess";
 import { withLoading } from "@/utils/async";
 import { logBarClass, spanStatusColor, statusLabel, statusTagType } from "@/utils/httpStatus";
 import type { InvokeLog, TraceSpan } from "@/types";
 
+const { Perm, isAdmin } = useAccess();
 const loading = ref(false);
 const logs = ref<InvokeLog[]>([]);
 const drawer = ref(false);
@@ -62,6 +65,10 @@ function resetFilters() {
   filters.value = { traceId: "", appId: "", apiName: "", timeRange: [] };
 }
 
+function exportLogs() {
+  ElMessage.success("演示环境：调用日志导出任务已创建，待后端接入后下载文件");
+}
+
 function spanColor(status: TraceSpan["status"]) {
   return spanStatusColor(status);
 }
@@ -69,8 +76,13 @@ function spanColor(status: TraceSpan["status"]) {
 
 <template>
   <div class="page trace-page" v-loading="loading">
-    <PageHeader title="调用链追踪" desc="ApiHub 核心能力 · 全链路 TraceId 检索与耗时分析">
-      <el-tag type="info" effect="dark">SkyWalking 风格演示</el-tag>
+    <PageHeader
+      :title="isAdmin ? '调用链追踪' : '我的调用记录'"
+      :desc="isAdmin ? '全平台 TraceId 检索与耗时分析' : '仅展示当前账号应用产生的调用记录'"
+    >
+      <CanAccess :permission="Perm.LOG_VIEW_ALL">
+        <el-button type="primary" @click="exportLogs">导出日志</el-button>
+      </CanAccess>
     </PageHeader>
 
     <section class="card search-panel">

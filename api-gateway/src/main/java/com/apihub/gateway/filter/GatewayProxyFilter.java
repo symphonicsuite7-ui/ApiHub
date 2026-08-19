@@ -20,8 +20,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Set;
@@ -56,7 +58,8 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
         }
         String targetPath = uri.substring("/api".length());
         String query = request.getQueryString();
-        String url = targetBase + targetPath + (query == null ? "" : "?" + query);
+        // 查询串通常已百分号编码；用 URI 转发，避免 RestTemplate 对 % 再编码一次
+        URI targetUri = buildDownstreamUri(targetBase, targetPath, query);
 
         HttpHeaders headers = new HttpHeaders();
         Collections.list(request.getHeaderNames()).forEach(name -> {
@@ -73,7 +76,7 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
         HttpMethod method = HttpMethod.valueOf(request.getMethod());
         HttpEntity<byte[]> entity = new HttpEntity<>(body.length == 0 ? null : body, headers);
         try {
-            ResponseEntity<byte[]> downstream = restTemplate.exchange(url, method, entity, byte[].class);
+            ResponseEntity<byte[]> downstream = restTemplate.exchange(targetUri, method, entity, byte[].class);
             response.setStatus(downstream.getStatusCode().value());
             downstream.getHeaders().forEach((key, values) -> {
                 if (!SKIP_HEADERS.contains(key.toLowerCase()) && !"content-encoding".equalsIgnoreCase(key)) {
@@ -93,9 +96,32 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
             response.setStatus(HttpServletResponse.SC_BAD_GATEWAY);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            Result<Void> fail = Result.<Void>fail(ErrorCode.INTERNAL_ERROR.getCode(), "下游服务不可用: " + url)
+            Result<Void> fail = Result.<Void>fail(ErrorCode.INTERNAL_ERROR.getCode(), "下游服务不可用: " + targetUri)
                     .traceId(traceId);
             response.getWriter().write(objectMapper.writeValueAsString(fail));
+        }
+    }
+
+    /**
+     * 组装下游地址。query 已编码时不再二次编码，未编码时再补编码。
+     */
+    private URI buildDownstreamUri(String targetBase, String targetPath, String query) {
+        if (query == null || query.isEmpty()) {
+            return UriComponentsBuilder.fromHttpUrl(targetBase).path(targetPath).build(true).toUri();
+        }
+        try {
+            return UriComponentsBuilder.fromHttpUrl(targetBase)
+                    .path(targetPath)
+                    .replaceQuery(query)
+                    .build(true)
+                    .toUri();
+        } catch (IllegalArgumentException ex) {
+            return UriComponentsBuilder.fromHttpUrl(targetBase)
+                    .path(targetPath)
+                    .replaceQuery(query)
+                    .encode()
+                    .build()
+                    .toUri();
         }
     }
 

@@ -5,6 +5,14 @@ spring:
   application:
     name: api-invoke
 
+# 第三方天气配置（当前已接入高德天气；生产环境建议改回环境变量注入）
+apihub:
+  weather:
+    provider: amap
+    amap:
+      key: f820ccb8c37e95ba316907122d2b8a66
+      base-url: https://restapi.amap.com
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

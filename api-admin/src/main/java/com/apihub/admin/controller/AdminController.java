@@ -2,9 +2,7 @@ package com.apihub.admin.controller;
 
 import com.apihub.common.result.Result;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
@@ -38,6 +36,10 @@ public class AdminController {
                 "SELECT id, name, path, method, description, version, category, status, create_time "
                         + "FROM api_interface ORDER BY id"
         );
+        return Result.ok(list);
+    }
+    @PostMapping("/addinterfaces")
+    public Result<List<Map<String, Object>>> addinterfaces(@RequestBody List<Map<String, Object>> list) {
         return Result.ok(list);
     }
 }

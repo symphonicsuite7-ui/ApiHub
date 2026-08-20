@@ -73,6 +73,19 @@ CREATE TABLE IF NOT EXISTS api_invoke_log (
     KEY idx_app_time (app_id, create_time)
 ) COMMENT '调用日志';
 
+CREATE TABLE IF NOT EXISTS api_category (
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name          VARCHAR(64) NOT NULL COMMENT '分类名称',
+    code          VARCHAR(64) NOT NULL UNIQUE COMMENT '分类编码',
+    parent_id     BIGINT NOT NULL DEFAULT 0 COMMENT '父分类',
+    description   VARCHAR(255) NULL COMMENT '描述',
+    status        TINYINT NOT NULL DEFAULT 1 COMMENT '1启用 0禁用',
+    sort          INT NOT NULL DEFAULT 0 COMMENT '排序',
+    create_time   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                  ON UPDATE CURRENT_TIMESTAMP
+) COMMENT '接口分类';
+
 INSERT INTO sys_role (role_code, role_name) VALUES
 ('ADMIN', '管理员'),
 ('USER', '普通用户')

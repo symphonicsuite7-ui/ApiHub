@@ -9,6 +9,7 @@
 spring:
   application:
     name: api-gateway
+  datasource:
     url: jdbc:mysql://47.104.243.13:3306/apihub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ApiHub
     password: Aa257774050
@@ -38,3 +39,4 @@ apihub:
 logging:
   pattern:
     console: "%d{HH:mm:ss.SSS} [%X{traceId}] %-5level %logger{36} - %msg%n"
+

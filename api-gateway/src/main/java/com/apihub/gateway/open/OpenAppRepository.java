@@ -18,6 +18,7 @@ public class OpenAppRepository {
     private final JdbcTemplate jdbcTemplate;
     private final long cacheTtlMillis;
     private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, InterfaceCacheEntry> interfaceCache = new ConcurrentHashMap<>();
 
     public OpenAppRepository(
             JdbcTemplate jdbcTemplate,
@@ -70,6 +71,31 @@ public class OpenAppRepository {
         return count != null && count > 0;
     }
 
+    /**
+     * 按路径+方法解析接口 id（带 TTL 缓存）。
+     * 接口资产 id 几乎不变，缓存时间复用应用缓存 TTL；查不到返回 null。
+     */
+    public Long findInterfaceId(String path, String method) {
+        String key = method.toUpperCase() + " " + path;
+        long now = System.currentTimeMillis();
+        InterfaceCacheEntry entry = interfaceCache.get(key);
+        if (entry != null && entry.expireAt > now) {
+            return entry.interfaceId;
+        }
+        Long interfaceId = jdbcTemplate.query(
+                "SELECT id FROM api_interface WHERE path = ? AND method = ?",
+                rs -> rs.next() ? rs.getLong(1) : null,
+                path, method.toUpperCase()
+        );
+        if (interfaceId != null) {
+            interfaceCache.put(key, new InterfaceCacheEntry(interfaceId, now + cacheTtlMillis));
+        }
+        return interfaceId;
+    }
+
     private record CacheEntry(AppInfo info, long expireAt) {
+    }
+
+    private record InterfaceCacheEntry(Long interfaceId, long expireAt) {
     }
 }

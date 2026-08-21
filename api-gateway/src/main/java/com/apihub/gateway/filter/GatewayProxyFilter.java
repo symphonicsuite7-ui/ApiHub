@@ -19,6 +19,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -126,20 +127,28 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
         }
     }
 
-    /** 转发结束后异步记录调用日志（不影响主流程）。 */
+    /** 转发结束后异步记录调用日志（不影响主流程）。健康检查不记录。 */
     private void recordInvokeLog(HttpServletRequest request, int status, long costNanos) {
         try {
+            String uri = request.getRequestURI();
+            if (uri == null || uri.endsWith("/health")) {
+                return;
+            }
             String traceId = MDC.get("traceId");
             Object appIdAttr = request.getAttribute(RequestAttrs.OPEN_APP_ID);
             String appId = appIdAttr == null ? null : String.valueOf(appIdAttr);
+            String forwarded = request.getHeader("X-Forwarded-For");
+            String ip = StringUtils.hasText(forwarded)
+                    ? forwarded.split(",")[0].trim()
+                    : request.getRemoteAddr();
             invokeLogWriter.writeAsync(
                     traceId,
                     appId,
-                    request.getRequestURI(),
+                    uri,
                     request.getMethod(),
                     status,
                     costNanos / 1_000_000,
-                    request.getRemoteAddr()
+                    ip
             );
         } catch (Exception ex) {
             // 日志记录自身异常不影响主请求

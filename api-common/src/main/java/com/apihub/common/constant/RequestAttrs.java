@@ -9,6 +9,8 @@ public final class RequestAttrs {
     public static final String USER_ID = "apihub.userId";
     public static final String USER_NAME = "apihub.username";
     public static final String USER_ROLES = "apihub.roles";
+    /** 开放调用通过签名认证的应用标识（OpenApiAuthFilter 写入） */
+    public static final String OPEN_APP_ID = "apihub.openAppId";
 
     private RequestAttrs() {
     }

@@ -1,5 +1,7 @@
 package com.apihub.admin.Enum;
 
+import com.baomidou.mybatisplus.annotation.EnumValue;
+
 public enum StatusEnum {
 
 
@@ -12,6 +14,8 @@ public enum StatusEnum {
      */
     DISABLE(0,"禁用");
 
+    /** 数据库存储值（1 启用 0 禁用），MyBatis-Plus 按此映射 */
+    @EnumValue
     private final Integer code;
 
     private final String message;
@@ -21,5 +25,13 @@ public enum StatusEnum {
         this.code = code;
 
         this.message = message;
+    }
+
+    public Integer getCode() {
+        return code;
+    }
+
+    public String getMessage() {
+        return message;
     }
 }

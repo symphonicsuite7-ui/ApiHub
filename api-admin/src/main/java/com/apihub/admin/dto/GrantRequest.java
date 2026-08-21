@@ -1,5 +1,7 @@
 package com.apihub.admin.dto;
 
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
@@ -10,6 +12,6 @@ import java.util.List;
 @Data
 public class GrantRequest {
 
-    /** 要开通的接口 id 列表 */
-    private List<Long> interfaceIds;
+    @NotEmpty(message = "interfaceIds 不能为空")
+    private List<@NotNull(message = "接口 id 不能为空") Long> interfaceIds;
 }

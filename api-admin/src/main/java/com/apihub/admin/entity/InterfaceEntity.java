@@ -2,25 +2,37 @@ package com.apihub.admin.entity;
 
 import com.apihub.admin.Enum.HttpMethodEnum;
 import com.apihub.admin.Enum.StatusEnum;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
-import lombok.NonNull;
-import org.springframework.http.HttpStatus;
 
+import java.time.LocalDateTime;
+
+/**
+ * 接口资产实体，对应表 api_interface。
+ */
 @Data
+@TableName("api_interface")
 public class InterfaceEntity {
-    @NonNull
-    String name;
-    @NonNull
-    String path;
 
-    HttpMethodEnum method;
+    @TableId(type = IdType.AUTO)
+    private Long id;
 
-    String description;
+    private String name;
 
-    StatusEnum versiong;
+    private String path;
 
-    String categoty;
+    private HttpMethodEnum method;
 
-    StatusEnum status;
+    private String description;
 
+    private String version;
+
+    private String category;
+
+    /** 0 下线 1 上线 */
+    private StatusEnum status;
+
+    private LocalDateTime createTime;
 }

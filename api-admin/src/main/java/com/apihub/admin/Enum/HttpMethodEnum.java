@@ -1,6 +1,6 @@
 package com.apihub.admin.Enum;
 
-import lombok.Data;
+import com.baomidou.mybatisplus.annotation.EnumValue;
 
 public enum HttpMethodEnum {
 
@@ -25,6 +25,8 @@ public enum HttpMethodEnum {
 */
     PATCH("PATCH","部分修改");
 
+    /** 数据库存储值（如 GET/POST），MyBatis-Plus 按此映射 */
+    @EnumValue
     private final String code;
 
     private final String desc;

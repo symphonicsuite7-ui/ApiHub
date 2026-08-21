@@ -1,6 +1,8 @@
 package com.apihub.admin.service;
 
 import com.apihub.admin.dto.AppCreateRequest;
+import com.apihub.admin.dto.AppCreatedVO;
+import com.apihub.admin.dto.AppDetailVO;
 import com.apihub.admin.dto.AppVO;
 
 import java.util.List;
@@ -10,15 +12,15 @@ import java.util.List;
  */
 public interface AppService {
 
-    AppVO create(AppCreateRequest request, Long operatorId);
+    AppCreatedVO create(AppCreateRequest request, Long operatorId, String rolesHeader);
 
-    List<AppVO> list(Long operatorId);
+    List<AppVO> list(Long operatorId, String rolesHeader);
 
-    AppVO detail(Long id, Long operatorId);
+    AppDetailVO detail(Long id, Long operatorId, String rolesHeader);
 
-    void updateStatus(Long id, Integer status, Long operatorId);
+    void updateStatus(Long id, Integer status, Long operatorId, String rolesHeader);
 
-    void grant(String appId, List<Long> interfaceIds, Long operatorId);
+    void grant(String appId, List<Long> interfaceIds, Long operatorId, String rolesHeader);
 
-    void revoke(String appId, Long interfaceId, Long operatorId);
+    void revoke(String appId, Long interfaceId, Long operatorId, String rolesHeader);
 }

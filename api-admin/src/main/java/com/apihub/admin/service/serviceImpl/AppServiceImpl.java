@@ -1,13 +1,22 @@
 package com.apihub.admin.service.serviceImpl;
 
+import com.apihub.admin.Enum.StatusEnum;
 import com.apihub.admin.dto.AppCreateRequest;
+import com.apihub.admin.dto.AppCreatedVO;
+import com.apihub.admin.dto.AppDetailVO;
 import com.apihub.admin.dto.AppVO;
+import com.apihub.admin.dto.GrantedInterfaceVO;
+import com.apihub.admin.entity.AppEntity;
+import com.apihub.admin.entity.AppInterfaceEntity;
+import com.apihub.admin.entity.InterfaceEntity;
+import com.apihub.admin.mapper.AppInterfaceMapper;
+import com.apihub.admin.mapper.AppMapper;
+import com.apihub.admin.mapper.InterfaceMapper;
 import com.apihub.admin.service.AppService;
 import com.apihub.admin.util.AppKeyGenerator;
 import com.apihub.common.exception.BizException;
 import com.apihub.common.result.ErrorCode;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -15,137 +24,218 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
- * 应用管理简单实现（v1）：JdbcTemplate 直连，先跑通主流程。
- * <p>
- * 待优化点（v2）：MyBatis-Plus 实体/Mapper 分层、参数校验、Secret 脱敏、数据权限、事务细化。
+ * 应用管理最终实现（v2）：MyBatis-Plus 实体/Mapper 分层，含数据权限、Secret 脱敏、
+ * 业务校验与事务。
  */
 @Service
 public class AppServiceImpl implements AppService {
 
-    private static final RowMapper<AppVO> APP_ROW_MAPPER = (rs, i) -> {
-        AppVO vo = new AppVO();
-        vo.setId(rs.getLong("id"));
-        vo.setAppId(rs.getString("app_id"));
-        vo.setAppSecret(rs.getString("app_secret"));
-        vo.setAppName(rs.getString("app_name"));
-        vo.setUserId(rs.getLong("user_id"));
-        vo.setStatus(rs.getInt("status"));
-        vo.setQpsLimit(rs.getInt("qps_limit"));
-        vo.setDailyQuota(rs.getInt("daily_quota"));
-        vo.setCreateTime(rs.getString("create_time"));
-        return vo;
-    };
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final int LIST_LIMIT = 200;
 
-    private static final String BASE_SELECT =
-            "SELECT id, app_id, app_secret, app_name, user_id, status, qps_limit, daily_quota, create_time FROM api_app";
+    private final AppMapper appMapper;
+    private final AppInterfaceMapper appInterfaceMapper;
+    private final InterfaceMapper interfaceMapper;
 
-    private final JdbcTemplate jdbcTemplate;
-
-    public AppServiceImpl(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public AppServiceImpl(AppMapper appMapper, AppInterfaceMapper appInterfaceMapper, InterfaceMapper interfaceMapper) {
+        this.appMapper = appMapper;
+        this.appInterfaceMapper = appInterfaceMapper;
+        this.interfaceMapper = interfaceMapper;
     }
 
     @Override
-    public AppVO create(AppCreateRequest request, Long operatorId) {
-        if (request == null || !StringUtils.hasText(request.getAppName())) {
-            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "应用名称不能为空");
-        }
+    public AppCreatedVO create(AppCreateRequest request, Long operatorId, String rolesHeader) {
         Long ownerId = operatorId != null ? operatorId : request.getUserId();
-        String appId = AppKeyGenerator.generateAppId();
-        String appSecret = AppKeyGenerator.generateAppSecret();
-        int qps = request.getQpsLimit() == null ? 10 : request.getQpsLimit();
-        int quota = request.getDailyQuota() == null ? 1000 : request.getDailyQuota();
+        if (ownerId == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED);
+        }
 
-        jdbcTemplate.update(
-                "INSERT INTO api_app (app_id, app_secret, app_name, user_id, status, qps_limit, daily_quota) "
-                        + "VALUES (?, ?, ?, ?, 1, ?, ?)",
-                appId, appSecret, request.getAppName().trim(), ownerId, qps, quota);
+        AppEntity entity = new AppEntity();
+        entity.setAppId(AppKeyGenerator.generateAppId());
+        entity.setAppSecret(AppKeyGenerator.generateAppSecret());
+        entity.setAppName(request.getAppName().trim());
+        entity.setUserId(ownerId);
+        entity.setStatus(1);
+        entity.setQpsLimit(request.getQpsLimit() == null ? 10 : request.getQpsLimit());
+        entity.setDailyQuota(request.getDailyQuota() == null ? 1000 : request.getDailyQuota());
+        appMapper.insert(entity);
 
-        AppVO vo = new AppVO();
-        vo.setAppId(appId);
-        vo.setAppSecret(appSecret);
-        vo.setAppName(request.getAppName().trim());
-        vo.setUserId(ownerId);
-        vo.setStatus(1);
-        vo.setQpsLimit(qps);
-        vo.setDailyQuota(quota);
+        return toCreatedVO(entity);
+    }
+
+    @Override
+    public List<AppVO> list(Long operatorId, String rolesHeader) {
+        LambdaQueryWrapper<AppEntity> wrapper = new LambdaQueryWrapper<AppEntity>()
+                .orderByDesc(AppEntity::getId)
+                .last("LIMIT " + LIST_LIMIT);
+        if (operatorId != null && !isAdmin(rolesHeader)) {
+            wrapper.eq(AppEntity::getUserId, operatorId);
+        }
+        return appMapper.selectList(wrapper).stream().map(this::toVO).toList();
+    }
+
+    @Override
+    public AppDetailVO detail(Long id, Long operatorId, String rolesHeader) {
+        AppEntity entity = requireApp(id);
+        requireOwner(entity, operatorId, rolesHeader);
+
+        AppDetailVO vo = new AppDetailVO();
+        copyBase(entity, vo);
+        vo.setGrantedInterfaces(listGrantedInterfaces(entity.getAppId()));
         return vo;
     }
 
     @Override
-    public List<AppVO> list(Long operatorId) {
-        if (operatorId == null) {
-            // 本地直连调试：查全部
-            return jdbcTemplate.query(BASE_SELECT + " ORDER BY id DESC", APP_ROW_MAPPER);
-        }
-        return jdbcTemplate.query(BASE_SELECT + " WHERE user_id = ? ORDER BY id DESC", APP_ROW_MAPPER, operatorId);
-    }
-
-    @Override
-    public AppVO detail(Long id, Long operatorId) {
-        List<AppVO> apps = jdbcTemplate.query(BASE_SELECT + " WHERE id = ?", APP_ROW_MAPPER, id);
-        if (apps.isEmpty()) {
-            throw new BizException(ErrorCode.APP_INVALID);
-        }
-        AppVO vo = apps.get(0);
-        List<Map<String, Object>> granted = jdbcTemplate.queryForList(
-                "SELECT i.id, i.name, i.path, i.method, i.description, i.version, i.category, i.status "
-                        + "FROM api_app_interface g JOIN api_interface i ON i.id = g.interface_id "
-                        + "WHERE g.app_id = ? ORDER BY g.id",
-                vo.getAppId());
-        vo.setGrantedInterfaces(granted);
-        return vo;
-    }
-
-    @Override
-    public void updateStatus(Long id, Integer status, Long operatorId) {
-        if (status == null || (status != 0 && status != 1)) {
-            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "status 只能为 0（禁用）或 1（启用）");
-        }
-        Integer exists = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM api_app WHERE id = ?", Integer.class, id);
-        if (exists == null || exists == 0) {
-            throw new BizException(ErrorCode.APP_INVALID);
-        }
-        jdbcTemplate.update("UPDATE api_app SET status = ? WHERE id = ?", status, id);
+    public void updateStatus(Long id, Integer status, Long operatorId, String rolesHeader) {
+        AppEntity entity = requireApp(id);
+        requireOwner(entity, operatorId, rolesHeader);
+        entity.setStatus(status);
+        appMapper.updateById(entity);
     }
 
     @Override
     @Transactional
-    public void grant(String appId, List<Long> interfaceIds, Long operatorId) {
-        requireEnabledApp(appId);
-        if (interfaceIds == null || interfaceIds.isEmpty()) {
-            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "interfaceIds 不能为空");
-        }
+    public void grant(String appId, List<Long> interfaceIds, Long operatorId, String rolesHeader) {
+        AppEntity app = requireEnabledApp(appId);
+        requireOwner(app, operatorId, rolesHeader);
+
         for (Long interfaceId : interfaceIds) {
-            if (interfaceId == null) {
-                continue;
-            }
-            Integer online = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(1) FROM api_interface WHERE id = ? AND status = 1", Integer.class, interfaceId);
-            if (online == null || online == 0) {
+            InterfaceEntity iface = interfaceMapper.selectById(interfaceId);
+            if (iface == null || iface.getStatus() != StatusEnum.ENABLE) {
                 throw new BizException(ErrorCode.INTERFACE_OFFLINE);
             }
-            jdbcTemplate.update(
-                    "INSERT INTO api_app_interface (app_id, interface_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE id = id",
-                    appId, interfaceId);
+            Long exists = appInterfaceMapper.selectCount(new LambdaQueryWrapper<AppInterfaceEntity>()
+                    .eq(AppInterfaceEntity::getAppId, appId)
+                    .eq(AppInterfaceEntity::getInterfaceId, interfaceId));
+            if (exists != null && exists > 0) {
+                throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "接口 " + interfaceId + " 已开通，请勿重复开通");
+            }
+            AppInterfaceEntity relation = new AppInterfaceEntity();
+            relation.setAppId(appId);
+            relation.setInterfaceId(interfaceId);
+            appInterfaceMapper.insert(relation);
         }
     }
 
     @Override
-    public void revoke(String appId, Long interfaceId, Long operatorId) {
-        if (interfaceId == null) {
-            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "interfaceId 不能为空");
-        }
-        jdbcTemplate.update("DELETE FROM api_app_interface WHERE app_id = ? AND interface_id = ?", appId, interfaceId);
+    public void revoke(String appId, Long interfaceId, Long operatorId, String rolesHeader) {
+        AppEntity app = requireAppByAppId(appId);
+        requireOwner(app, operatorId, rolesHeader);
+        appInterfaceMapper.delete(new LambdaQueryWrapper<AppInterfaceEntity>()
+                .eq(AppInterfaceEntity::getAppId, appId)
+                .eq(AppInterfaceEntity::getInterfaceId, interfaceId));
     }
 
-    private void requireEnabledApp(String appId) {
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT id FROM api_app WHERE app_id = ? AND status = 1", appId);
-        if (rows.isEmpty()) {
+    // ---------- 私有辅助 ----------
+
+    private List<GrantedInterfaceVO> listGrantedInterfaces(String appId) {
+        List<AppInterfaceEntity> relations = appInterfaceMapper.selectList(
+                new LambdaQueryWrapper<AppInterfaceEntity>()
+                        .eq(AppInterfaceEntity::getAppId, appId)
+                        .orderByAsc(AppInterfaceEntity::getId));
+        if (relations.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<Long> ids = relations.stream().map(AppInterfaceEntity::getInterfaceId).toList();
+        Map<Long, InterfaceEntity> ifaceMap = interfaceMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(InterfaceEntity::getId, Function.identity()));
+        return relations.stream()
+                .map(r -> toGrantedVO(ifaceMap.get(r.getInterfaceId())))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private GrantedInterfaceVO toGrantedVO(InterfaceEntity iface) {
+        if (iface == null) {
+            return null;
+        }
+        GrantedInterfaceVO vo = new GrantedInterfaceVO();
+        vo.setId(iface.getId());
+        vo.setName(iface.getName());
+        vo.setPath(iface.getPath());
+        vo.setMethod(iface.getMethod() == null ? null : iface.getMethod().getCode());
+        vo.setDescription(iface.getDescription());
+        vo.setVersion(iface.getVersion());
+        vo.setCategory(iface.getCategory());
+        vo.setStatus(iface.getStatus() == null ? null : iface.getStatus().getCode());
+        return vo;
+    }
+
+    private AppEntity requireApp(Long id) {
+        AppEntity entity = appMapper.selectById(id);
+        if (entity == null) {
             throw new BizException(ErrorCode.APP_INVALID);
         }
+        return entity;
+    }
+
+    private AppEntity requireAppByAppId(String appId) {
+        AppEntity entity = appMapper.selectOne(new LambdaQueryWrapper<AppEntity>()
+                .eq(AppEntity::getAppId, appId));
+        if (entity == null) {
+            throw new BizException(ErrorCode.APP_INVALID);
+        }
+        return entity;
+    }
+
+    private AppEntity requireEnabledApp(String appId) {
+        AppEntity entity = requireAppByAppId(appId);
+        if (!Objects.equals(entity.getStatus(), 1)) {
+            throw new BizException(ErrorCode.APP_INVALID);
+        }
+        return entity;
+    }
+
+    /**
+     * 数据权限：非管理员只能操作自己名下的应用。
+     */
+    private void requireOwner(AppEntity entity, Long operatorId, String rolesHeader) {
+        if (isAdmin(rolesHeader)) {
+            return;
+        }
+        if (operatorId == null || !Objects.equals(operatorId, entity.getUserId())) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private boolean isAdmin(String rolesHeader) {
+        if (!StringUtils.hasText(rolesHeader)) {
+            return false;
+        }
+        for (String role : rolesHeader.split(",")) {
+            if (ROLE_ADMIN.equals(role.trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private AppVO toVO(AppEntity e) {
+        AppVO vo = new AppVO();
+        copyBase(e, vo);
+        return vo;
+    }
+
+    private void copyBase(AppEntity e, AppVO vo) {
+        vo.setId(e.getId());
+        vo.setAppId(e.getAppId());
+        vo.setAppName(e.getAppName());
+        vo.setUserId(e.getUserId());
+        vo.setStatus(e.getStatus());
+        vo.setQpsLimit(e.getQpsLimit());
+        vo.setDailyQuota(e.getDailyQuota());
+        vo.setCreateTime(e.getCreateTime());
+    }
+
+    private AppCreatedVO toCreatedVO(AppEntity e) {
+        AppCreatedVO vo = new AppCreatedVO();
+        copyBase(e, vo);
+        vo.setAppSecret(e.getAppSecret());
+        return vo;
     }
 }

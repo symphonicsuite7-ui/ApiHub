@@ -5,6 +5,7 @@ import com.apihub.common.constant.RequestAttrs;
 import com.apihub.common.result.ErrorCode;
 import com.apihub.common.result.Result;
 import com.apihub.gateway.config.RouteProperties;
+import com.apihub.gateway.open.InvokeLogWriter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -41,11 +42,14 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
 
     private final RouteProperties routeProperties;
     private final RestTemplate restTemplate;
+    private final InvokeLogWriter invokeLogWriter;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public GatewayProxyFilter(RouteProperties routeProperties, RestTemplate restTemplate) {
+    public GatewayProxyFilter(RouteProperties routeProperties, RestTemplate restTemplate,
+                              InvokeLogWriter invokeLogWriter) {
         this.routeProperties = routeProperties;
         this.restTemplate = restTemplate;
+        this.invokeLogWriter = invokeLogWriter;
     }
 
     @Override
@@ -90,9 +94,12 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
 
         HttpMethod method = HttpMethod.valueOf(request.getMethod());
         HttpEntity<byte[]> entity = new HttpEntity<>(body.length == 0 ? null : body, headers);
+        long startNanos = System.nanoTime();
+        int status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
         try {
             ResponseEntity<byte[]> downstream = restTemplate.exchange(targetUri, method, entity, byte[].class);
-            response.setStatus(downstream.getStatusCode().value());
+            status = downstream.getStatusCode().value();
+            response.setStatus(status);
             downstream.getHeaders().forEach((key, values) -> {
                 if (!SKIP_HEADERS.contains(key.toLowerCase()) && !"content-encoding".equalsIgnoreCase(key)) {
                     for (String value : values) {
@@ -114,6 +121,28 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
             Result<Void> fail = Result.<Void>fail(ErrorCode.INTERNAL_ERROR.getCode(), "下游服务不可用: " + targetUri)
                     .traceId(traceId);
             response.getWriter().write(objectMapper.writeValueAsString(fail));
+        } finally {
+            recordInvokeLog(request, status, System.nanoTime() - startNanos);
+        }
+    }
+
+    /** 转发结束后异步记录调用日志（不影响主流程）。 */
+    private void recordInvokeLog(HttpServletRequest request, int status, long costNanos) {
+        try {
+            String traceId = MDC.get("traceId");
+            Object appIdAttr = request.getAttribute(RequestAttrs.OPEN_APP_ID);
+            String appId = appIdAttr == null ? null : String.valueOf(appIdAttr);
+            invokeLogWriter.writeAsync(
+                    traceId,
+                    appId,
+                    request.getRequestURI(),
+                    request.getMethod(),
+                    status,
+                    costNanos / 1_000_000,
+                    request.getRemoteAddr()
+            );
+        } catch (Exception ex) {
+            // 日志记录自身异常不影响主请求
         }
     }
 

@@ -1,9 +1,11 @@
 package com.apihub.gateway.filter;
 
 import com.apihub.common.constant.ApiHeaders;
+import com.apihub.common.constant.RequestAttrs;
 import com.apihub.common.result.ErrorCode;
 import com.apihub.common.result.Result;
 import com.apihub.gateway.config.RouteProperties;
+import com.apihub.gateway.open.InvokeLogWriter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -17,6 +19,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -40,11 +43,14 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
 
     private final RouteProperties routeProperties;
     private final RestTemplate restTemplate;
+    private final InvokeLogWriter invokeLogWriter;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public GatewayProxyFilter(RouteProperties routeProperties, RestTemplate restTemplate) {
+    public GatewayProxyFilter(RouteProperties routeProperties, RestTemplate restTemplate,
+                              InvokeLogWriter invokeLogWriter) {
         this.routeProperties = routeProperties;
         this.restTemplate = restTemplate;
+        this.invokeLogWriter = invokeLogWriter;
     }
 
     @Override
@@ -71,13 +77,30 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
         if (traceId != null) {
             headers.set(ApiHeaders.TRACE_ID, traceId);
         }
+        // 透传 JWT 解析出的用户身份，让下游服务感知当前用户
+        Object userId = request.getAttribute(RequestAttrs.USER_ID);
+        if (userId != null) {
+            headers.set(ApiHeaders.USER_ID, String.valueOf(userId));
+        }
+        Object username = request.getAttribute(RequestAttrs.USER_NAME);
+        if (username != null && !String.valueOf(username).isEmpty()) {
+            headers.set(ApiHeaders.USER_NAME, String.valueOf(username));
+        }
+        Object roles = request.getAttribute(RequestAttrs.USER_ROLES);
+        if (roles != null && !String.valueOf(roles).isEmpty()) {
+            headers.set(ApiHeaders.USER_ROLES, String.valueOf(roles));
+        }
 
         byte[] body = request.getInputStream().readAllBytes();
+
         HttpMethod method = HttpMethod.valueOf(request.getMethod());
         HttpEntity<byte[]> entity = new HttpEntity<>(body.length == 0 ? null : body, headers);
+        long startNanos = System.nanoTime();
+        int status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
         try {
             ResponseEntity<byte[]> downstream = restTemplate.exchange(targetUri, method, entity, byte[].class);
-            response.setStatus(downstream.getStatusCode().value());
+            status = downstream.getStatusCode().value();
+            response.setStatus(status);
             downstream.getHeaders().forEach((key, values) -> {
                 if (!SKIP_HEADERS.contains(key.toLowerCase()) && !"content-encoding".equalsIgnoreCase(key)) {
                     for (String value : values) {
@@ -99,6 +122,36 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
             Result<Void> fail = Result.<Void>fail(ErrorCode.INTERNAL_ERROR.getCode(), "下游服务不可用: " + targetUri)
                     .traceId(traceId);
             response.getWriter().write(objectMapper.writeValueAsString(fail));
+        } finally {
+            recordInvokeLog(request, status, System.nanoTime() - startNanos);
+        }
+    }
+
+    /** 转发结束后异步记录调用日志（不影响主流程）。健康检查不记录。 */
+    private void recordInvokeLog(HttpServletRequest request, int status, long costNanos) {
+        try {
+            String uri = request.getRequestURI();
+            if (uri == null || uri.endsWith("/health")) {
+                return;
+            }
+            String traceId = MDC.get("traceId");
+            Object appIdAttr = request.getAttribute(RequestAttrs.OPEN_APP_ID);
+            String appId = appIdAttr == null ? null : String.valueOf(appIdAttr);
+            String forwarded = request.getHeader("X-Forwarded-For");
+            String ip = StringUtils.hasText(forwarded)
+                    ? forwarded.split(",")[0].trim()
+                    : request.getRemoteAddr();
+            invokeLogWriter.writeAsync(
+                    traceId,
+                    appId,
+                    uri,
+                    request.getMethod(),
+                    status,
+                    costNanos / 1_000_000,
+                    ip
+            );
+        } catch (Exception ex) {
+            // 日志记录自身异常不影响主请求
         }
     }
 

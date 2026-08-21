@@ -1,24 +1,42 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { CopyDocument, Key, Plus, View } from "@element-plus/icons-vue";
-import { ElMessage } from "element-plus";
-import { fetchApps } from "@/api/admin";
+import { Connection, CopyDocument, Key, Plus, View } from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import {
+  createApp,
+  fetchAppDetail,
+  fetchApps,
+  fetchInterfaces,
+  grantInterfaces,
+  revokeInterface,
+  updateAppStatus,
+} from "@/api/admin";
 import CanAccess from "@/components/CanAccess.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import { useAccess } from "@/composables/useAccess";
-import type { ApiApp } from "@/types";
+import type { ApiApp, ApiInterface } from "@/types";
 
 const { Perm, isAdmin } = useAccess();
 const loading = ref(false);
 const apps = ref<ApiApp[]>([]);
 const dialog = ref(false);
 const resultDialog = ref(false);
-const visibleSecrets = ref<number[]>([]);
+const createdApp = ref<ApiApp | null>(null);
+const createdDemo = ref(false);
+const creating = ref(false);
 const form = reactive({
   appName: "",
-  description: "",
+  qpsLimit: 10,
+  dailyQuota: 1000,
 });
-const createdApp = ref<ApiApp | null>(null);
+
+// 接口权限管理弹窗
+const grantDialog = ref(false);
+const grantTarget = ref<ApiApp | null>(null);
+const grantLoading = ref(false);
+const grantSaving = ref(false);
+const allInterfaces = ref<ApiInterface[]>([]);
+const checkedIds = ref<number[]>([]);
 
 const summary = computed(() => ({
   totalApps: apps.value.length,
@@ -28,68 +46,120 @@ const summary = computed(() => ({
 
 onMounted(async () => {
   loading.value = true;
-  apps.value = await fetchApps();
-  loading.value = false;
+  try {
+    apps.value = await fetchApps();
+  } finally {
+    loading.value = false;
+  }
 });
 
-function createApp() {
+async function createAppHandler() {
   if (!form.appName.trim()) {
     ElMessage.warning("请输入应用名称");
     return;
   }
-  const stamp = Date.now().toString(36).slice(-8);
-  const newApp: ApiApp = {
-    id: Date.now(),
-    appId: `app_${stamp}`,
-    appName: form.appName.trim(),
-    description: form.description.trim() || "开发者中心新创建的业务应用。",
-    appSecret: `sk_live_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
-    status: 1,
-    qpsLimit: 10,
-    dailyQuota: 1000,
-    interfaceCount: 0,
-    invokeCount: 0,
-    owner: "Current User",
-    createTime: new Date().toLocaleString("zh-CN", { hour12: false }),
-  };
-  apps.value.unshift(newApp);
-  createdApp.value = newApp;
-  dialog.value = false;
-  resultDialog.value = true;
-  form.appName = "";
-  form.description = "";
-  ElMessage.success("应用已创建");
+  creating.value = true;
+  try {
+    const { app, demo } = await createApp({
+      appName: form.appName.trim(),
+      qpsLimit: form.qpsLimit,
+      dailyQuota: form.dailyQuota,
+    });
+    apps.value.unshift(app);
+    createdApp.value = app;
+    createdDemo.value = demo;
+    dialog.value = false;
+    resultDialog.value = true;
+    form.appName = "";
+    form.qpsLimit = 10;
+    form.dailyQuota = 1000;
+    ElMessage.success(demo ? "应用已创建（离线演示数据）" : "应用已创建");
+  } catch (err) {
+    ElMessage.error((err as Error).message || "创建失败");
+  } finally {
+    creating.value = false;
+  }
 }
 
-function maskedSecret(secret?: string) {
-  if (!secret) return "********";
-  return `${secret.slice(0, 4)}****************`;
-}
-
-function isVisible(id: number) {
-  return visibleSecrets.value.includes(id);
-}
-
-function toggleSecret(id: number) {
-  if (isVisible(id)) {
-    visibleSecrets.value = visibleSecrets.value.filter((item) => item !== id);
-  } else {
-    visibleSecrets.value = [...visibleSecrets.value, id];
+async function toggleAppStatus(item: ApiApp) {
+  const next = item.status === 1 ? 0 : 1;
+  const action = next === 1 ? "启用" : "停用";
+  try {
+    await ElMessageBox.confirm(`确认${action}应用「${item.appName}」？`, "提示", {
+      type: "warning",
+    });
+  } catch {
+    return;
+  }
+  try {
+    await updateAppStatus(item.id, next);
+    item.status = next;
+    ElMessage.success(`应用已${action}`);
+  } catch (err) {
+    ElMessage.error((err as Error).message || `${action}失败`);
   }
 }
 
 async function copySecret(secret?: string) {
   if (!secret) {
-    ElMessage.warning("暂无 Secret");
+    ElMessage.warning("Secret 仅创建时可见一次，如需重新获取请重新创建应用");
     return;
   }
   await navigator.clipboard.writeText(secret);
   ElMessage.success("AppSecret 已复制");
 }
 
-function toggleAppStatus(item: ApiApp) {
-  item.status = item.status === 1 ? 0 : 1;
-  ElMessage.success(item.status === 1 ? "应用已启用（前端演示）" : "应用已停用（前端演示）");
+function showSecret(item: ApiApp) {
+  if (!item.appSecret) {
+    ElMessage.info("Secret 仅创建时可见一次，列表中不展示");
+    return;
+  }
+  ElMessageBox.alert(item.appSecret, "AppSecret", {
+    confirmButtonText: "复制",
+    callback: () => copySecret(item.appSecret),
+  });
+}
+
+async function openGrantDialog(item: ApiApp) {
+  grantTarget.value = item;
+  grantDialog.value = true;
+  grantLoading.value = true;
+  checkedIds.value = [];
+  try {
+    const [detail, interfaces] = await Promise.all([fetchAppDetail(item.id), fetchInterfaces()]);
+    allInterfaces.value = interfaces;
+    checkedIds.value = detail.grantedInterfaces.map((api) => api.id);
+  } catch (err) {
+    ElMessage.error((err as Error).message || "加载接口列表失败");
+  } finally {
+    grantLoading.value = false;
+  }
+}
+
+async function saveGrants() {
+  if (!grantTarget.value) return;
+  const target = grantTarget.value;
+  grantSaving.value = true;
+  try {
+    const detail = await fetchAppDetail(target.id);
+    const currentIds = detail.grantedInterfaces.map((api) => api.id);
+    const targetSet = new Set(checkedIds.value);
+    const toGrant = checkedIds.value.filter((id) => !currentIds.includes(id));
+    const toRevoke = currentIds.filter((id) => !targetSet.has(id));
+    if (toGrant.length > 0) {
+      await grantInterfaces(target.appId, toGrant);
+    }
+    for (const id of toRevoke) {
+      await revokeInterface(target.appId, id);
+    }
+    target.interfaceCount = checkedIds.value.length;
+    ElMessage.success("接口权限已更新");
+    grantDialog.value = false;
+  } catch (err) {
+    ElMessage.error((err as Error).message || "保存失败");
+  } finally {
+    grantSaving.value = false;
+  }
 }
 </script>
 
@@ -138,12 +208,10 @@ function toggleAppStatus(item: ApiApp) {
           </div>
           <div class="row">
             <span class="label">Secret</span>
-            <code class="secret">{{ isVisible(item.id) ? item.appSecret : maskedSecret(item.appSecret) }}</code>
+            <code class="secret">••••••••••••••••••••••••••</code>
           </div>
           <div class="secret-actions">
-            <el-button text type="primary" :icon="View" @click="toggleSecret(item.id)">
-              {{ isVisible(item.id) ? "隐藏 Secret" : "显示 Secret" }}
-            </el-button>
+            <el-button text type="primary" :icon="View" @click="showSecret(item)">查看 Secret</el-button>
             <el-button text type="primary" :icon="CopyDocument" @click="copySecret(item.appSecret)">
               复制 Secret
             </el-button>
@@ -173,6 +241,9 @@ function toggleAppStatus(item: ApiApp) {
           <span class="owner">负责人 {{ item.owner || "Admin" }}</span>
           <div class="foot-actions">
             <span class="time">创建于 {{ item.createTime }}</span>
+            <CanAccess :permission="Perm.APP_CREATE">
+              <el-button size="small" :icon="Connection" @click="openGrantDialog(item)">管理接口</el-button>
+            </CanAccess>
             <CanAccess :permission="Perm.APP_MANAGE">
               <el-button size="small" :type="item.status === 1 ? 'warning' : 'success'" @click="toggleAppStatus(item)">
                 {{ item.status === 1 ? "停用" : "启用" }}
@@ -186,20 +257,18 @@ function toggleAppStatus(item: ApiApp) {
     <el-dialog v-model="dialog" title="创建应用" width="460px">
       <el-form label-position="top">
         <el-form-item label="应用名称">
-          <el-input v-model="form.appName" placeholder="例如：开放网关演示" />
+          <el-input v-model="form.appName" placeholder="例如：开放网关演示" maxlength="128" />
         </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="3"
-            placeholder="简要说明应用用途，例如：用于运营系统接入 Weather API 与 SMS API"
-          />
+        <el-form-item label="QPS 上限">
+          <el-input-number v-model="form.qpsLimit" :min="1" :max="100000" />
+        </el-form-item>
+        <el-form-item label="每日配额">
+          <el-input-number v-model="form.dailyQuota" :min="1" :max="100000000" :step="100" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" @click="createApp">创建</el-button>
+        <el-button type="primary" :loading="creating" @click="createAppHandler">创建</el-button>
       </template>
     </el-dialog>
 
@@ -207,7 +276,7 @@ function toggleAppStatus(item: ApiApp) {
       <div v-if="createdApp" class="created">
         <div class="created-tip">
           <el-icon><Key /></el-icon>
-          <span>请妥善保存以下凭证，离开页面后仅支持重新生成 Secret。</span>
+          <span>请妥善保存以下凭证，离开页面后仅创建时可见一次。</span>
         </div>
         <div class="created-item">
           <span>AppId</span>
@@ -215,14 +284,33 @@ function toggleAppStatus(item: ApiApp) {
         </div>
         <div class="created-item">
           <span>AppSecret</span>
-          <code>{{ createdApp.appSecret }}</code>
+          <code>{{ createdApp.appSecret || "（离线演示）" }}</code>
         </div>
+        <el-alert v-if="createdDemo" type="warning" :closable="false"
+          title="当前为离线演示数据：后端不可用，应用未真正落库。" />
       </div>
       <template #footer>
         <el-button @click="resultDialog = false">关闭</el-button>
         <el-button type="primary" :icon="CopyDocument" @click="copySecret(createdApp?.appSecret)">
           复制 Secret
         </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="grantDialog" :title="`管理接口权限 · ${grantTarget?.appName || ''}`" width="580px">
+      <div v-loading="grantLoading">
+        <p class="grant-tip">勾选需要开放的接口，保存后立即生效；仅显示已上线的接口。</p>
+        <el-checkbox-group v-model="checkedIds" class="grant-list">
+          <el-checkbox v-for="api in allInterfaces" :key="api.id" :value="api.id" class="grant-item">
+            <span class="grant-name">{{ api.name }}</span>
+            <code class="grant-path">{{ api.method }} {{ api.path }}</code>
+          </el-checkbox>
+        </el-checkbox-group>
+        <el-empty v-if="!grantLoading && allInterfaces.length === 0" description="暂无可开通的接口" :image-size="72" />
+      </div>
+      <template #footer>
+        <el-button @click="grantDialog = false">取消</el-button>
+        <el-button type="primary" :loading="grantSaving" @click="saveGrants">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -339,6 +427,7 @@ function toggleAppStatus(item: ApiApp) {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .owner,
 .time {
@@ -378,6 +467,39 @@ function toggleAppStatus(item: ApiApp) {
   color: var(--accent);
   font-family: ui-monospace, Consolas, monospace;
   word-break: break-all;
+}
+.grant-tip {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.grant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.grant-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.4);
+  height: auto;
+  white-space: normal;
+}
+.grant-name {
+  font-weight: 600;
+  margin-right: 8px;
+}
+.grant-path {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 @media (max-width: 1200px) {
   .meta-grid {

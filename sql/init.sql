@@ -19,9 +19,9 @@ CREATE TABLE IF NOT EXISTS sys_role (
 ) COMMENT '角色';
 
 CREATE TABLE IF NOT EXISTS sys_user_role (
+    user_id BIGINT NOT NULL,
     role_id BIGINT NOT NULL,
     PRIMARY KEY (user_id, role_id)
-    user_id BIGINT NOT NULL,
 ) COMMENT '用户角色';
 
 CREATE TABLE IF NOT EXISTS api_app (

@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: 8080
   servlet:
     encoding:
@@ -9,6 +9,16 @@ server:
 spring:
   application:
     name: api-gateway
+    url: jdbc:mysql://47.104.243.13:3306/apihub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ApiHub
+    password: Aa257774050
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      timeout: 500ms
+      connect-timeout: 500ms
 
 apihub:
   jwt:
@@ -18,6 +28,12 @@ apihub:
     auth: http://127.0.0.1:8081
     admin: http://127.0.0.1:8082
     invoke: http://127.0.0.1:8083
+  open:
+    timestamp-window-seconds: 300
+    rate-limit:
+      enabled: true
+    app-cache:
+      ttl-seconds: 60
 
 logging:
   pattern:

@@ -9,15 +9,20 @@
 spring:
   application:
     name: api-gateway
-  datasource:
     url: jdbc:mysql://47.104.243.13:3306/apihub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ApiHub
     password: Aa257774050
     driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      timeout: 500ms
+      connect-timeout: 500ms
 
 apihub:
   jwt:
-    secret: [REDACTED]
+    secret: ApiHubCourseDesignSecretKeyMustBeLongEnough2026
     expire-seconds: 7200
   routes:
     auth: http://127.0.0.1:8081
@@ -25,8 +30,11 @@ apihub:
     invoke: http://127.0.0.1:8083
   open:
     timestamp-window-seconds: 300
+    rate-limit:
+      enabled: true
+    app-cache:
+      ttl-seconds: 60
 
 logging:
   pattern:
     console: "%d{HH:mm:ss.SSS} [%X{traceId}] %-5level %logger{36} - %msg%n"
-

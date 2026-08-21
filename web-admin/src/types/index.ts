@@ -62,6 +62,23 @@ export interface ApiApp {
   createTime: string;
 }
 
+/** 应用已开通的接口（后端 AppDetailVO.grantedInterfaces） */
+export interface GrantedInterface {
+  id: number;
+  name: string;
+  path: string;
+  method: HttpMethod | string;
+  description?: string;
+  version: string;
+  category?: string;
+  status: number;
+}
+
+/** 应用详情：基础信息 + 已开通接口列表 */
+export interface AppDetail extends ApiApp {
+  grantedInterfaces: GrantedInterface[];
+}
+
 export interface TraceSpan {
   name: string;
   service: string;

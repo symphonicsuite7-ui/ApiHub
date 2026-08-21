@@ -1,6 +1,7 @@
 package com.apihub.gateway.filter;
 
 import com.apihub.common.constant.ApiHeaders;
+import com.apihub.common.constant.RequestAttrs;
 import com.apihub.common.result.ErrorCode;
 import com.apihub.common.result.Result;
 import com.apihub.gateway.config.RouteProperties;
@@ -71,8 +72,22 @@ public class GatewayProxyFilter extends OncePerRequestFilter implements Ordered 
         if (traceId != null) {
             headers.set(ApiHeaders.TRACE_ID, traceId);
         }
+        // 透传 JWT 解析出的用户身份，让下游服务感知当前用户
+        Object userId = request.getAttribute(RequestAttrs.USER_ID);
+        if (userId != null) {
+            headers.set(ApiHeaders.USER_ID, String.valueOf(userId));
+        }
+        Object username = request.getAttribute(RequestAttrs.USER_NAME);
+        if (username != null && !String.valueOf(username).isEmpty()) {
+            headers.set(ApiHeaders.USER_NAME, String.valueOf(username));
+        }
+        Object roles = request.getAttribute(RequestAttrs.USER_ROLES);
+        if (roles != null && !String.valueOf(roles).isEmpty()) {
+            headers.set(ApiHeaders.USER_ROLES, String.valueOf(roles));
+        }
 
         byte[] body = request.getInputStream().readAllBytes();
+
         HttpMethod method = HttpMethod.valueOf(request.getMethod());
         HttpEntity<byte[]> entity = new HttpEntity<>(body.length == 0 ? null : body, headers);
         try {

@@ -1,10 +1,12 @@
 package com.apihub.gateway.filter;
 
 import com.apihub.common.constant.ApiHeaders;
+import com.apihub.common.constant.RequestAttrs;
 import com.apihub.common.jwt.JwtUtil;
 import com.apihub.common.result.ErrorCode;
 import com.apihub.common.result.Result;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,6 +22,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 管理端接口校验 JWT；登录注册、开放演示接口放行。
@@ -56,7 +59,14 @@ public class JwtAuthFilter extends OncePerRequestFilter implements Ordered {
             return;
         }
         try {
-            jwtUtil.parse(authorization.substring(7).trim());
+            Claims claims = jwtUtil.parse(authorization.substring(7).trim());
+            // 解析用户身份，供后续过滤器透传给下游服务
+            request.setAttribute(RequestAttrs.USER_ID, jwtUtil.getUserId(claims));
+            Object username = claims.get("username");
+            request.setAttribute(RequestAttrs.USER_NAME, username == null ? "" : String.valueOf(username));
+            Object roles = claims.get("roles");
+            request.setAttribute(RequestAttrs.USER_ROLES, roles == null ? ""
+                    : ((List<?>) roles).stream().map(String::valueOf).collect(Collectors.joining(",")));
             filterChain.doFilter(request, response);
         } catch (JwtException | IllegalArgumentException ex) {
             writeUnauthorized(response);
